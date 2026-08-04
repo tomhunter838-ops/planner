@@ -508,54 +508,16 @@ function loadDB(){
   try{ const raw=localStorage.getItem(STORE_KEY); if(raw){ const o=JSON.parse(raw); UID=(o._uid||1000); migrate(o); return o; } }catch(e){}
   return buildSeed();
 }
-/* Legacy week shapes: earlier builds stored a week as {0..6} day-keyed objects, with day-of-week
-   in `d` and no `future` lane. Anything that isn't the current { key, monday, days[], future{} }
-   shape is converted here, so no stored data can white-screen the app on boot. */
-function normaliseWeeks(db){
-  if(!db.weeks || typeof db.weeks!=='object'){ db.weeks={}; return; }
-  Object.keys(db.weeks).forEach(iso=>{
-    const wk=db.weeks[iso];
-    if(!wk || typeof wk!=='object'){ delete db.weeks[iso]; return; }
-    if(!Array.isArray(wk.days)){                       // pull 0..6 keys into a days array
-      const picked=[];
-      for(let i=0;i<7;i++){ if(wk[i] && typeof wk[i]==='object') picked.push(wk[i]); }
-      wk.days=picked;
-      for(let i=0;i<7;i++){ delete wk[i]; }
-    }
-    const [y,m,d]=String(iso).split('-').map(Number);
-    const tmpl = (y&&m&&d) ? emptyWeekDays(iso) : null;
-    wk.days = Array.from({length:7},(_,i)=>{
-      const fresh = tmpl ? tmpl[i] : { personal:[],work:[],appts:[],dow:DOW[i],n:i+1,month:'' };
-      const src = wk.days[i];
-      if(!src || typeof src!=='object') return fresh;
-      if(!Array.isArray(src.personal)) src.personal=[];
-      if(!Array.isArray(src.work))     src.work=[];
-      if(!Array.isArray(src.appts))    src.appts=[];
-      if(!src.dow)      src.dow   = src.d || fresh.dow;   // legacy used `d` for the day name
-      if(src.n==null)   src.n     = fresh.n;
-      if(!src.month)    src.month = fresh.month;
-      return src;
-    });
-    if(!wk.future || typeof wk.future!=='object') wk.future={personal:[],work:[]};
-    if(!Array.isArray(wk.future.personal)) wk.future.personal=[];
-    if(!Array.isArray(wk.future.work))     wk.future.work=[];
-    if(!wk.key) wk.key=iso;
-    if(!Array.isArray(wk.monday) && y&&m&&d) wk.monday=[y,m-1,d];
-  });
-}
 // additive migration: never removes/overwrites — only fills new optional fields on older data
 function migrate(db){
-  normaliseWeeks(db);
   if(!db.projects) db.projects=[];
   if(!db.inbox) db.inbox=[];
   if(!db.recur) db.recur=[];
   if(!db.shopping) db.shopping=[];
   if(!db.health) db.health=sampleHealth();
   if(db.health && !db.health.days) db.health.days={};
-  const fix=(t,lane)=>{
+  const fix=t=>{
     if(t.id==null) t.id=uid();                 // real v2 tasks may lack ids — assign before anything references them
-    if(!t.kind) t.kind=lane||'personal';       // legacy tasks carried no kind — take it from the lane they sit in
-    if(t.label==null) t.label=t.l||t.text||'';
     if(typeof t.done!=='boolean') t.done=!!t.done;
     if(t.open===undefined) t.open=false;
     if(t.defers===undefined) t.defers=0;
@@ -569,7 +531,7 @@ function migrate(db){
     if(!Array.isArray(t.subs)) t.subs=[];
     t.subs=t.subs.map(s=> typeof s==='string' ? {id:uid(),label:s,done:false} : (s.id==null?(s.id=uid(),s):s));
   };
-  Object.values(db.weeks||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>['personal','work'].forEach(k=>(d[k]||[]).forEach(t=>fix(t,k)))); ['personal','work'].forEach(k=>((wk.future&&wk.future[k])||[]).forEach(t=>fix(t,k))); });
+  Object.values(db.weeks||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>['personal','work'].forEach(k=>(d[k]||[]).forEach(fix))); ['personal','work'].forEach(k=>((wk.future&&wk.future[k])||[]).forEach(fix)); });
   if(!db.projects.length) installDefaultProjects(db);
 }
 function saveDB(){ try{ DB.savedAt=Date.now(); DB._uid=UID; localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){} flashSaved(); scheduleSync(); }
@@ -631,7 +593,7 @@ const view = document.getElementById('view');
 function render(){
   document.body.className = 'v-'+ui.view;
   document.body.dataset.lay = isLap()?'lap':'phone';
-  if(!ui.weekKey){ ensureWeek(todayMonday); ui.weekKey = todayMonday; }   // always open on today, even if stored data predates it
+  if(!ui.weekKey) ui.weekKey = DB.weeks[todayMonday] ? todayMonday : Object.keys(DB.weeks).sort()[0];
   renderChrome();
   if(ui.view==='today') renderToday();
   else if(ui.view==='week') renderWeek();
@@ -642,6 +604,7 @@ function render(){
   else if(ui.view==='review') renderReview();
   else renderMore();
   syncAddbar();
+  updateSyncBadge();
 }
 function viewTransition(cb){
   if(document.startViewTransition){
@@ -680,7 +643,7 @@ function renderChrome(){
       `<div class="brand"><span class="mk">P</span>Planner</div>
        <div class="lnav">${chips.map(t=>`<button data-go="${t[0]}" class="${at===t[0]?'on':''}">${t[1]}${t[0]==='reminders'&&dc?`<span class="bdg">${dc}</span>`:''}</button>`).join('')}</div>
        <div class="lapright">
-         <span class="synced"><span class="d"></span>Local only</span>
+         <span class="synced">${(function(){var q=syncLabel();return '<span class="d" style="background:'+q.dot+'"></span>'+q.txt;})()}</span>
          <button class="ghost" data-go="shopping">🛒 Shopping</button>
          <button class="ghost" data-act="backup">⬇ Backup</button>
          <button class="ghost" data-act="excel">⬇ Excel</button>
@@ -1066,10 +1029,19 @@ async function odPush(){
   odState.syncing=false; updateSyncBadge();
 }
 let _syncT; function scheduleSync(){ if(!odState.connected||!odState.live) return; clearTimeout(_syncT); _syncT=setTimeout(odPush, 1500); }
+function flushSync(){ if(!odState.connected||!odState.live||odState.syncing) return; clearTimeout(_syncT); odPush(); }
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') flushSync(); });
+window.addEventListener('pagehide', flushSync);
 
 async function odMakeLive(){ odState.live=true; odPersistMeta(); updateSyncBadge(); await odPush(); if(ui.view==='more') renderMore(); flashToast(odState.error?'Save issue — see Connections':'This is now your live planner ✓'); }
 function odDisconnect(){ localStorage.removeItem(OD.tokKey); localStorage.removeItem(OD.metaKey); odState.connected=false; odState.live=false; odState.account=''; odState.error=null; updateSyncBadge(); if(ui.view==='more') renderMore(); flashToast('Disconnected — your tasks stay on this device'); }
 async function odBackupNow(){ exportJSON(); if(odState.connected&&DEPLOY_OK){ try{ const cur=await gText(APPROOT+'/'+OD.file+':/content'); if(cur!=null){ await gPut(APPROOT+'/backups/'+OD.file.replace('.json','')+'-'+todayISO+'-manual.json:/content', cur); flashToast('Backed up locally + to OneDrive'); } }catch(e){ flashToast('Local backup saved; cloud backup failed'); } } }
+
+function offerMakeLive(n){
+  openDialog(`<h3>Make this device live?</h3><p>Your ${n} tasks are here — but this device is still <b>read-only</b>. Changes you make will stay on it and won't reach your other devices until you turn this on.</p><div class="acts"><button class="cancel" data-x="ml-no">Not yet</button><button class="save" data-x="ml-yes">Make live</button></div>`);
+  dlg.querySelector('[data-x=ml-no]').addEventListener('click',closeDialog);
+  dlg.querySelector('[data-x=ml-yes]').addEventListener('click',async()=>{ closeDialog(); await odMakeLive(); });
+}
 
 async function openReconcile(){
   openDialog(`<h3>Reading your cloud planner…</h3><p>Looking at OneDrive. Your file is <b>not</b> being changed.</p><div class="acts"><button class="cancel" data-x="c">Close</button></div>`);
@@ -1098,7 +1070,7 @@ async function openReconcile(){
     migrate(adopted); const after=countTasksIn(adopted).tasks;
     if(after<before){ flashToast('Import would drop tasks — aborted, nothing changed'); closeDialog(); return; }  // zero-loss guard
     DB.weeks=adopted.weeks; DB.recur=adopted.recur||DB.recur; if(adopted.projects)DB.projects=adopted.projects; if(adopted.inbox)DB.inbox=adopted.inbox; if(adopted.shopping)DB.shopping=adopted.shopping; if(adopted.health)DB.health=adopted.health;
-    saveDB(); closeDialog(); render(); flashToast(`Imported ${after} tasks from cloud ✓`);
+    saveDB(); closeDialog(); render(); flashToast(`Imported ${after} tasks from cloud ✓`); if(!odState.live) setTimeout(function(){ offerMakeLive(after); }, 500);
   });
   dlg.querySelector('[data-x=usedevice]').addEventListener('click',async()=>{ closeDialog(); await odMakeLive(); });
 }
@@ -1773,14 +1745,14 @@ function remindOverdue(t){ return t.remind && !t.done && new Date(t.remind)<=new
 function remindPill(t){ if(!t||!t.remind||t.done) return ''; return `<span class="pill remind ${remindOverdue(t)?'over':''}">⏰ ${fmtRemind(t.remind)}</span>`; }
 function toLocalISO(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function getProject(pid){ return (DB.projects||[]).find(p=>p.id===pid); }
-function allProjectTasks(pid){ const out=[]; Object.keys(DB.weeks||{}).sort().forEach(wkk=>{ const wk=DB.weeks[wkk]; (wk.days||[]).forEach((d,di)=>['personal','work'].forEach(k=>(d[k]||[]).forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di,kind:k,where:`${d.dow} ${d.n} ${d.month}`}); }))); ['personal','work'].forEach(k=>((wk.future&&wk.future[k])||[]).forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'F',kind:k,where:'Future'}); })); }); return out; }
+function allProjectTasks(pid){ const out=[]; Object.keys(DB.weeks).sort().forEach(wkk=>{ const wk=DB.weeks[wkk]; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di,kind:k,where:`${d.dow} ${d.n} ${d.month}`}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'F',kind:k,where:'Future'}); })); }); return out; }
 function projectProgress(pid){ const ts=allProjectTasks(pid); const done=ts.filter(x=>x.t.done).length; return {done,total:ts.length,pct:ts.length?Math.round(done/ts.length*100):0,tasks:ts}; }
 function nextProjectStep(pid){ return allProjectTasks(pid).filter(x=>!x.t.done)[0]||null; }
 function dueCountdown(due){ const days=Math.round((new Date(due)-new Date())/86400000); if(days<0)return 'overdue'; if(days===0)return 'due today'; if(days<14)return days+' days left'; if(days<70)return Math.round(days/7)+' weeks left'; return Math.round(days/30)+' months left'; }
 function malagaLine(){ const p=(DB.projects||[]).find(x=>x.id==='malaga'); if(!p)return ''; const pr=projectProgress('malaga'); const nx=nextProjectStep('malaga'); return `${pr.pct}% there${nx?` · next is “${esc(nx.t.label)}”`:''}`; }
-function allReminders(){ const out=[]; Object.values(DB.weeks||{}).forEach(wk=>{ (wk.days||[]).forEach((d,di)=>['personal','work'].forEach(k=>(d[k]||[]).forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di,kind:k}); }))); ['personal','work'].forEach(k=>((wk.future&&wk.future[k])||[]).forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di:'F',kind:k}); })); }); out.sort((a,b)=>new Date(a.t.remind)-new Date(b.t.remind)); return out; }
+function allReminders(){ const out=[]; Object.values(DB.weeks).forEach(wk=>{ wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di,kind:k}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di:'F',kind:k}); })); }); out.sort((a,b)=>new Date(a.t.remind)-new Date(b.t.remind)); return out; }
 function dueCount(){ const now=new Date(); return allReminders().filter(x=>new Date(x.t.remind)<=now).length; }
-function countAllTasks(){ let n=0; Object.values(DB.weeks||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>{n+=((d.personal||[]).length)+((d.work||[]).length);}); n+=(((wk.future&&wk.future.personal)||[]).length)+(((wk.future&&wk.future.work)||[]).length); }); return n; }
+function countAllTasks(){ let n=0; Object.values(DB.weeks).forEach(wk=>{ wk.days.forEach(d=>{n+=d.personal.length+d.work.length;}); n+=wk.future.personal.length+wk.future.work.length; }); return n; }
 
 function malagaDriverHTML(){ const p=(DB.projects||[]).find(x=>x.pinned); if(!p)return ''; const pr=projectProgress(p.id); const nx=nextProjectStep(p.id); return `<button class="driver" data-act="openproject" data-pid="${p.id}" style="--pc:${p.color}"><div class="drv-l"><div class="drv-name">★ ${esc(p.name)}</div><div class="drv-next">${nx?'Next: '+esc(nx.t.label):'All steps done 🎉'}</div></div><div class="drv-r"><div class="drv-pct">${pr.pct}%</div><div class="pf-bar small"><div class="pf-fill" style="width:${pr.pct}%"></div></div></div></button>`; }
 function dueBanner(){ const n=dueCount(); if(!n) return ''; return `<button class="duebanner" data-go="reminders"><span class="db-l">🔔 ${n} reminder${n!==1?'s':''} due now</span><span class="db-r">Review →</span></button>`; }
