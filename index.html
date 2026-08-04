@@ -531,7 +531,17 @@ function migrate(db){
     if(!Array.isArray(t.subs)) t.subs=[];
     t.subs=t.subs.map(s=> typeof s==='string' ? {id:uid(),label:s,done:false} : (s.id==null?(s.id=uid(),s):s));
   };
-  Object.values(db.weeks||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>['personal','work'].forEach(k=>(d[k]||[]).forEach(fix))); ['personal','work'].forEach(k=>((wk.future&&wk.future[k])||[]).forEach(fix)); });
+  /* repair week shape before anything reads it — legacy/partial weeks (no days, no future)
+     used to crash allReminders()/countAllTasks() and blank the whole app */
+  Object.entries(db.weeks||{}).forEach(([iso,wk])=>{
+    if(!wk || typeof wk!=='object') return;
+    if(!wk.key) wk.key=iso;
+    if(!Array.isArray(wk.monday)){ const [y,m,d]=iso.split('-').map(Number); if(y&&m&&d) wk.monday=[y,m-1,d]; }
+    if(!Array.isArray(wk.days)) wk.days=emptyWeekDays(iso);
+    wk.days.forEach(d=>['personal','work'].forEach(k=>{ if(!Array.isArray(d[k])) d[k]=[]; d[k].forEach(fix); }));
+    if(!wk.future || typeof wk.future!=='object') wk.future={personal:[],work:[]};
+    ['personal','work'].forEach(k=>{ if(!Array.isArray(wk.future[k])) wk.future[k]=[]; wk.future[k].forEach(fix); });
+  });
   if(!db.projects.length) installDefaultProjects(db);
 }
 function saveDB(){ try{ DB.savedAt=Date.now(); DB._uid=UID; localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){} flashSaved(); scheduleSync(); }
@@ -1750,9 +1760,9 @@ function projectProgress(pid){ const ts=allProjectTasks(pid); const done=ts.filt
 function nextProjectStep(pid){ return allProjectTasks(pid).filter(x=>!x.t.done)[0]||null; }
 function dueCountdown(due){ const days=Math.round((new Date(due)-new Date())/86400000); if(days<0)return 'overdue'; if(days===0)return 'due today'; if(days<14)return days+' days left'; if(days<70)return Math.round(days/7)+' weeks left'; return Math.round(days/30)+' months left'; }
 function malagaLine(){ const p=(DB.projects||[]).find(x=>x.id==='malaga'); if(!p)return ''; const pr=projectProgress('malaga'); const nx=nextProjectStep('malaga'); return `${pr.pct}% there${nx?` · next is “${esc(nx.t.label)}”`:''}`; }
-function allReminders(){ const out=[]; Object.values(DB.weeks).forEach(wk=>{ wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di,kind:k}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di:'F',kind:k}); })); }); out.sort((a,b)=>new Date(a.t.remind)-new Date(b.t.remind)); return out; }
+function allReminders(){ const out=[]; Object.values(DB.weeks).forEach(wk=>{ if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di,kind:k}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di:'F',kind:k}); })); }); out.sort((a,b)=>new Date(a.t.remind)-new Date(b.t.remind)); return out; }
 function dueCount(){ const now=new Date(); return allReminders().filter(x=>new Date(x.t.remind)<=now).length; }
-function countAllTasks(){ let n=0; Object.values(DB.weeks).forEach(wk=>{ wk.days.forEach(d=>{n+=d.personal.length+d.work.length;}); n+=wk.future.personal.length+wk.future.work.length; }); return n; }
+function countAllTasks(){ let n=0; Object.values(DB.weeks).forEach(wk=>{ if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach(d=>{n+=d.personal.length+d.work.length;}); n+=wk.future.personal.length+wk.future.work.length; }); return n; }
 
 function malagaDriverHTML(){ const p=(DB.projects||[]).find(x=>x.pinned); if(!p)return ''; const pr=projectProgress(p.id); const nx=nextProjectStep(p.id); return `<button class="driver" data-act="openproject" data-pid="${p.id}" style="--pc:${p.color}"><div class="drv-l"><div class="drv-name">★ ${esc(p.name)}</div><div class="drv-next">${nx?'Next: '+esc(nx.t.label):'All steps done 🎉'}</div></div><div class="drv-r"><div class="drv-pct">${pr.pct}%</div><div class="pf-bar small"><div class="pf-fill" style="width:${pr.pct}%"></div></div></div></button>`; }
 function dueBanner(){ const n=dueCount(); if(!n) return ''; return `<button class="duebanner" data-go="reminders"><span class="db-l">🔔 ${n} reminder${n!==1?'s':''} due now</span><span class="db-r">Review →</span></button>`; }
