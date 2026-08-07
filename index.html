@@ -379,6 +379,56 @@
   .dlg .chk input{ width:auto; }
 
   @media (prefers-reduced-motion:reduce){ *{ animation-duration:.001ms !important; transition-duration:.001ms !important; } }
+  /* ---- v0.7 clone additions: Week+ strip · weekend lane · gym tick · move sheet ---- */
+  .wp-scroll{ display:flex; gap:10px; overflow-x:auto; padding:4px 2px 14px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+  .wp-col{ flex:0 0 240px; width:240px; scroll-snap-align:start; }
+  [data-lay="phone"] .wp-scroll{ margin:0 -18px; padding:4px 18px 14px; }
+  [data-lay="phone"] .wp-col{ flex:0 0 62vw; width:62vw; }
+  .lapwrap.wide{ max-width:none; }
+  .col.wkd{ background:#eef2ec; border-color:#d5dfd2; }
+  .col.wkd .colhead .dw{ color:#4e8a5a; }
+  .col.nxt{ background:#e9eef1; border-color:#cfdbe1; }
+  .col.nxt .colhead .dw{ color:#557785; }
+  .wp-col .colhead{ display:flex; align-items:baseline; gap:6px; padding:2px 3px 9px; }
+  .wp-col .colhead .dw{ font-size:13px; font-weight:760; }
+  .wp-col .colhead .nn{ font-size:12px; font-weight:640; color:var(--muted); }
+  .dchip.wkdc{ background:#eef2ec; border-color:#d5dfd2; }
+  .dchip.futc{ background:#f4ecdb; border-color:#e7d5b6; }
+  .chiprow.wrap .dchip{ min-height:44px; }
+  [data-lay="phone"] .gymdot{ width:26px; height:26px; font-size:12px; }
+  .dp.wkd{ background:#eef2ec; border-color:#d5dfd2; }
+  .dp.wkd .d{ color:#4e8a5a; }
+  .wp-hint{ text-align:center; font-size:11px; color:var(--muted); padding:2px 0 8px; }
+  .carry.soft{ background:#4e8a5a; opacity:1; }   /* deliberate forward-planning action — green, not the gold used for overdue/aging */
+  .gymdot{ margin-left:auto; border:1.5px solid var(--hair); background:transparent; border-radius:50%; width:22px; height:22px; font-size:11px; line-height:1; opacity:.4; cursor:pointer; padding:0; }
+  .gymdot.on{ opacity:1; background:var(--good-wash); border-color:var(--good); }
+  .gymchip{ border:1px solid var(--hair); background:var(--paper); border-radius:12px; padding:6px 10px; font-size:11.5px; font-weight:640; color:var(--muted); box-shadow:var(--shadow-1); cursor:pointer; }
+  .gymchip.on{ color:var(--good); border-color:var(--good); background:var(--good-wash); }
+  .chiprow.wrap{ flex-wrap:wrap; }
+  .dchip.nxtc{ border-color:#cfdbe1; background:#e9eef1; }
+  .addmini.warn{ margin-left:auto; color:#a05a2c; border-color:#e0c3a8; background:#f6ead9; }
+  .col.late{ background:#f3ddc9; border-color:#e0bb92; }
+  .col.late .colhead .dw{ color:#a05a2c; }
+  .latelist{ max-height:58vh; overflow-y:auto; }
+  .col .list{ max-height:60vh; overflow-y:auto; }          /* no lane can balloon the page — big lists scroll inside their column */
+  .wp-scroll{ align-items:flex-start; }                    /* a tall column must not stretch its siblings */
+  .addmini.warn{ white-space:nowrap; }
+  .latejump{ display:block; margin:2px 0 8px; border:1px solid #e0bb92; background:#f3ddc9; color:#a05a2c; border-radius:11px; padding:7px 12px; font-size:12px; font-weight:660; cursor:pointer; }
+  .chev.faint{ opacity:.35; }
+  [data-lay="phone"] .wp-col .t{ flex-wrap:wrap; }
+  [data-lay="phone"] .wp-col .t .lab{ flex:1 1 100%; order:2; font-size:12.5px; }
+  [data-lay="phone"] .wp-col .t .check{ order:1; }
+  [data-lay="phone"] .wp-col .t .grip{ order:0; }
+  [data-lay="phone"] .wp-col .t .pill, [data-lay="phone"] .wp-col .t .chev, [data-lay="phone"] .wp-col .t .stuck{ order:3; }
+  [data-lay="phone"] .wp-col .subs{ flex:1 1 100%; order:4; }
+  .latelist .t{ background:var(--paper); }
+  .pill.wctag{ opacity:.65; }
+  .dp.late{ background:#f6e7d8; border-color:#e8cfae; }
+  .dp.late .d{ color:#a05a2c; font-weight:760; }
+  .weekgrid.wkend .col.fut{ grid-column:span 2; }
+  .weekgrid.wkend.haslate .col.fut{ grid-column:span 1; }
+  .t{ -webkit-touch-callout:none; }
+  .viewtog{ font-size:11.5px; font-weight:660; width:auto !important; padding:0 10px; }
 </style>
 </head>
 <body>
@@ -429,62 +479,19 @@ function day(y,m,d, personal, work){ const dt=new Date(y,m,d); return { personal
 function emptyWeekDays(iso){ const [y,m,d]=iso.split('-').map(Number); return Array.from({length:7},(_,i)=>{ const dt=new Date(y,m-1,d+i); return { personal:[],work:[],appts:[], dow:DOW[i], n:dt.getDate(), month:MON[dt.getMonth()] }; }); }
 
 function buildSeed(){
-  const w1 = '2026-06-22', w2 = '2026-06-29';
-  const weeks = {};
-  weeks[w1] = { key:w1, monday:[2026,5,22], days:[
-    day(2026,5,22,
-      [T('Joe Drop','personal'), T('Vaccine research reasoning','personal',{subs:['Vaccine Refusal Letter']}), T('Dentist','personal')],
-      [T('Onward meeting rearrange','work'), T('Chase Trafford Waters','work'), T('TM44s','work',{defers:3}), T('GMPs','work')]),
-    day(2026,5,23,
-      [T('Three phone contract bill','personal',{subs:['Change Chels to use abroad','Esim revolut?']}), T('ADHD Doctor Appointment','personal',{time:'10:00-10:45'})],
-      [T('Plan for Week','work',{repeat:'weekly'}), T('Trafford Waters GW2 Responses','work')]),
-    day(2026,5,24,
-      [],
-      [T('Plan for Salaries & Dividend','work',{done:true,subs:['Confirm payroll','Confirm Chelsea salary']})]),
-    day(2026,5,25,
-      [T('Pay Credit Card','personal'), T('Baby Gate','personal')],
-      [T('Onward boiler replacement specs & tender','work'),
-       T('Pendle Court BMS','work',{subs:['Showley Court Email','Crompton Court Email']}),
-       T('Controls Panel Tech Sub — Mitsi comments','work'),
-       T('Email COOP Live','work'),
-       T('Update BP','work',{subs:['Cashflow','Invoices Owed','Sub Con Invoicing']}),
-       T('TM44s','work',{defers:3}),
-       T('Onward HEVAC Meeting','work',{time:'14:00-15:00',subs:['Minutes','Actions (Andrea form)','Dave AC POs','Dave Boiler POs']})]),
-    day(2026,5,26,
-      [T('Reta','personal'), T('CSCS','personal'), T('Returns Money','personal'), T('Pin reta','personal'), T('Malaga relocation plan','personal',{defers:4})],
-      [T('Email Rob Hayes GMP','work'), T('Onward 5 year plan','work'), T('BMS proposals','work'),
-       T('Joe Brief','work'),
-       T('John Brief','work',{subs:['Teams List','Invoicing Bridgestone','DCR Didsbury','Avenham HC','Didsbury RFI']}),
-       T('Didsbury Report','work')]),
-    day(2026,5,27,
-      [T('Irish Passport','personal'), T('Corby Actions','personal'), T('Baby Proof House','personal')],
-      [T('Outstanding concerns','work',{subs:['Add vent to mgmt suites','Add missing FD']})]),
-    day(2026,5,28,
-      [T('Plan next week','personal')],
-      [T('Collect Onward Laptop','work'), T('GMP report','work'), T('Onward 5 year plan','work')]),
-  ], future:{
-    personal:[T('Baby Gate','personal'), T('Starlink','personal'), T('Vaccine research reasoning','personal'), T('Malaga relocation plan','personal',{defers:4}), T('Irish Passport','personal'), T('Corby Actions','personal')],
-    work:[T('Renew PI insurance','work'), T('BMS proposals','work')]
-  }};
-  weeks[w2] = { key:w2, monday:[2026,5,29], days:[
-    day(2026,5,29,[T('Bins','personal'),T('Tip Run','personal')],[T('Pay Salary','work'),T('Plan for business meeting','work')]),
-    day(2026,5,30,[T('Pay Credit Card','personal')],[T('Mark schedule of payments','work')]),
-    day(2026,6,1,[],[]),
-    day(2026,6,2,[],[T('Trafford Waters BCL Mtg','work')]),
-    day(2026,6,3,[T('Weekly shop','personal')],[T('Expenses','work',{repeat:'weekly'})]),
-    day(2026,6,4,[],[]),
-    day(2026,6,5,[T('Plan next week','personal')],[]),
-  ], future:{ personal:[T('Starlink','personal'),T('Malaga relocation plan','personal',{defers:5})], work:[T('Renew PI insurance','work')] }};
+  // Fresh start: the CURRENT week, empty, with the standing recurring rules applied.
+  // No historical sample weeks — a brand-new device begins clean and adopts the cloud copy on connect.
   const recur = [
     { day:'Mon', lane:'work', label:'Plan for Week', subs:['Outstanding actions','Priorities'] },
     { day:'Fri', lane:'work', label:'Expenses', subs:[] },
     { day:'Fri', lane:'personal', label:'Pay Credit Card', subs:[] },
   ];
-  // ----- July weeks merged from 'Tom - Latest 2026 To Do Planner' (WC 20 & 27 Jul) — parsed cell-by-cell, zero-loss -----
-  const mkTask=(r,kind)=>({ id:uid(), label:r.l, kind, done:!!r.d, time:r.t||null, subs:(r.s||[]).map(x=>({id:uid(),label:x.l,done:!!x.d})), open:false, repeat:null, defers:0, private:false, projectId:null, remind:null, claude:null, claudeLink:null });
-  const JULY={"2026-07-20":{"d":[{"personal":[{"l":"Malaga relocation plan","d":false,"s":[]},{"l":"Dentist appointment using new BUPA benefit","d":false,"s":[]}],"work":[{"l":"OLIVER @ NURSERY","d":false,"s":[{"l":"Work from DL or Regus","d":false},{"l":"Chels working from home","d":false},{"l":"Trafford Centre","d":false}]},{"l":"Trencherfield Mill Fire Damper Remedials - Performance Spec","d":false,"s":[]},{"l":"Ring Dan Jones GMP","d":true,"s":[{"l":"Email Rob Hayes","d":false}]},{"l":"Update BP","d":false,"s":[{"l":"Plan for Salaries & Dividend","d":false},{"l":"Payroll Plan","d":false},{"l":"Chels Salary Plan","d":false},{"l":"Confirm payroll","d":false},{"l":"Confirm Chelsea salary","d":false},{"l":"Cashflow","d":false},{"l":"Invoices Owed","d":false},{"l":"Sub Con Invoicing","d":false}]},{"l":"Onward boiler replacement specs & tender chase","d":false,"s":[]},{"l":"Trencherfield Mill - AC Design - chase","d":false,"s":[]},{"l":"GMP 3 site installs meeting / dan email","d":false,"s":[]}]},{"personal":[{"l":"Baby Proof Kitchen","d":false,"s":[]}],"work":[{"l":"ANNUAL LEAVE / OLIVER - CHELS OFFICE","d":false,"s":[]},{"l":"Carol Catch Up:","d":false,"s":[{"l":"Orders","d":false},{"l":"Boiler Replacement","d":false},{"l":"BMS Strategy","d":false},{"l":"HEVAC Tender Spec / Data Collation","d":false}]},{"l":"Ring Robert Luscombe / contact about meeting","d":false,"s":[]}]},{"personal":[{"l":"Pin Test","d":false,"s":[]},{"l":"Prepare Clothes for Meeting","d":false,"s":[]},{"l":"Order travel cot if needed","d":false,"s":[]},{"l":"Arrange dog trainer","d":false,"s":[]},{"l":"Baby Proof Kitchen  - Gate","d":false,"s":[]}],"work":[{"l":"Onward HEVAC Meeting","d":false,"s":[{"l":"Actions","d":false},{"l":"The Hub Booster Set Scope Fee","d":false},{"l":"BMS proposals","d":false}]},{"l":"Showley Court","d":false,"s":[]},{"l":"Onward boiler replacement specs & tender chase","d":false,"s":[{"l":"-Pick 26/27 Files","d":false}]}]},{"personal":[{"l":"Auk order chase ADHD shithouse","d":false,"s":[]},{"l":"Pack for lakes","d":false,"s":[{"l":"Fill car","d":false},{"l":"Check tyres","d":false}]}],"work":[{"l":"Harbour House - Site Meeting & Intro With Alison","d":false,"s":[]},{"l":"Ring Robert Luscombe / contact about meeting","d":false,"s":[]},{"l":"HMRC Tax Payment less money in there and plan for tax","d":false,"s":[]},{"l":"Onward 5 year plan","d":false,"s":[]},{"l":"Carol catch up notes / chase orders","d":false,"s":[]},{"l":"Trencherfield Mill Fire Damper Remedials - Performance Spec","d":false,"s":[{"l":"Speak to Lindab","d":false}]}]},{"personal":[{"l":"Reta","d":false,"s":[]},{"l":"Auk order chase ADHD shithouse","d":false,"s":[]}],"work":[{"l":"ANNUAL LEAVE / OLIVER & NURSERY","d":false,"s":[]},{"l":"Lakes travel","d":false,"s":[]},{"l":"Minutes","d":false,"s":[{"l":"Actions (Andrea form)","d":false},{"l":"Dave AC POs","d":false},{"l":"Dave Boiler POs","d":false}]},{"l":"Copperpot","d":false,"s":[]},{"l":"3563.44","d":false,"s":[]}]},{"personal":[{"l":"Pay Credit Card","d":false,"s":[{"l":"Chels cancel","d":false}]},{"l":"Car Insurance / RAC","d":false,"s":[]}],"work":[{"l":"Onward 5 year plan","d":false,"s":[]},{"l":"GMP data centre","d":false,"s":[]}]},{"personal":[{"l":"Pay Credit Card / Amex","d":false,"s":[{"l":"Pay Amex / Set up direct debit","d":false}]},{"l":"Malaga relocation plan","d":false,"s":[]},{"l":"Personal CC Expenses","d":false,"s":[]},{"l":"Returns / Asos Return","d":false,"s":[]},{"l":"Car Insurance / RAC","d":false,"s":[]}],"work":[{"l":"Carol catch up notes / chase orders","d":false,"s":[{"l":"Cashflow","d":false},{"l":"Invoices Owed","d":false},{"l":"Sub Con Invoicing","d":false}]},{"l":"GMP 3 site installs meeting / dan email","d":false,"s":[]},{"l":"Onward boiler replacement specs & tender","d":false,"s":[{"l":"-Pick 26/27 Files","d":false}]}]}],"f":{"personal":[{"l":"Babyproofing","d":false,"s":[]},{"l":"Returns Money","d":false,"s":[]},{"l":"Irish Passport","d":false,"s":[{"l":"Corby Actions","d":false}]},{"l":"CSCS","d":false,"s":[]},{"l":"ADHD Doctor Appointment","d":false,"s":[]},{"l":"Vaccine research reasoning","d":false,"s":[{"l":"Vaccine Refusal Letter","d":false}]},{"l":"Three phone contract bill","d":false,"s":[{"l":"Change Chels to use abroad","d":false},{"l":"Esim revolut?","d":false}]}],"work":[{"l":"GMP Nexus House & Bury / Rochdale","d":false,"s":[{"l":"Ring Spike","d":false}]},{"l":"Update BP","d":false,"s":[{"l":"Plan for Salaries & Dividend","d":false},{"l":"plan for mark business meeting, pay him","d":false},{"l":"Insurnace","d":false}]},{"l":"Increased Onward Audits & audit reports","d":false,"s":[]},{"l":"Fusion CWBS Tender","d":false,"s":[]},{"l":"Update BP","d":false,"s":[{"l":"Plan for Salaries & Dividend","d":false},{"l":"plan for mark business meeting, pay him","d":false},{"l":"Insurnace","d":false}]},{"l":"Save claude financial information in the onedrive","d":false,"s":[]},{"l":"Onward 5 year plan","d":false,"s":[]}]}},"2026-07-27":{"d":[{"personal":[{"l":"Malaga relocation plan","d":false,"s":[]},{"l":"Premium Bonds","d":false,"s":[{"l":"HMRC Self Assessment Payment","d":false},{"l":"Catch up dividend payment","d":false}]},{"l":"Dentist appointment using new BUPA benefit","d":false,"s":[]}],"work":[{"l":"OLIVER @ NURSERY","d":false,"s":[{"l":"Work from DL or Regus","d":false},{"l":"Chels working from home","d":false},{"l":"Trafford Centre","d":false}]},{"l":"Trencherfield Mill Fire Damper Remedials - Performance Spec","d":false,"s":[]},{"l":"Ring Dan Jones GMP","d":true,"s":[{"l":"Email Rob Hayes","d":false}]},{"l":"Update BP","d":false,"s":[{"l":"Plan for Salaries & Dividend","d":false},{"l":"Payroll Plan","d":false},{"l":"Chels Salary Plan","d":false},{"l":"Confirm payroll","d":false},{"l":"Confirm Chelsea salary","d":false},{"l":"Cashflow","d":false},{"l":"Invoices Owed","d":false},{"l":"Sub Con Invoicing","d":false}]},{"l":"Onward boiler replacement specs & tender chase","d":false,"s":[]},{"l":"Save claude financial information in the onedrive","d":false,"s":[]}]},{"personal":[{"l":"Baby Proof Kitchen","d":false,"s":[]}],"work":[{"l":"ANNUAL LEAVE / OLIVER - CHELS OFFICE","d":false,"s":[]},{"l":"Carol Catch Up:","d":false,"s":[{"l":"Orders","d":false},{"l":"Boiler Replacement","d":false},{"l":"BMS Strategy","d":false},{"l":"HEVAC Tender Spec / Data Collation","d":false}]},{"l":"Ring Robert Luscombe / contact about meeting","d":false,"s":[]}]},{"personal":[{"l":"Pin Test","d":false,"s":[]},{"l":"Withdraw Premium Bonds","d":false,"s":[{"l":"HMRC Self Assessment Payment","d":false}]},{"l":"Prepare Clothes for Meeting","d":false,"s":[]},{"l":"Order travel cot if needed","d":false,"s":[]}],"work":[{"l":"Onward HEVAC Meeting","d":false,"s":[{"l":"Actions","d":false},{"l":"The Hub Booster Set Scope Fee","d":false},{"l":"BMS proposals","d":false}]},{"l":"Trencherfield Mill - AC Design - chase","d":false,"s":[]},{"l":"Onward boiler replacement specs & tender chase","d":false,"s":[]},{"l":"Onward boiler replacement specs & tender","d":false,"s":[{"l":"-Pick 26/27 Files","d":false}]},{"l":"GMP 3 site installs meeting / dan email","d":false,"s":[]}]},{"personal":[{"l":"Auk order chase ADHD shithouse","d":false,"s":[]},{"l":"Pack for lakes","d":false,"s":[{"l":"Fill car","d":false},{"l":"Check tyres","d":false}]}],"work":[{"l":"Harbour House - Site Meeting & Intro With Alison","d":false,"s":[]},{"l":"Save claude financial information in the onedrive","d":false,"s":[{"l":"Chase Pendle / Others","d":false}]},{"l":"HMRC Tax Payment less money in there and plan for tax","d":false,"s":[]},{"l":"Onward 5 year plan","d":false,"s":[]},{"l":"Carol catch up notes / chase orders","d":false,"s":[]},{"l":"Trencherfield Mill Fire Damper Remedials - Performance Spec","d":false,"s":[]}]},{"personal":[{"l":"Reta","d":false,"s":[]},{"l":"Auk order chase ADHD shithouse","d":false,"s":[]}],"work":[{"l":"ANNUAL LEAVE / OLIVER & NURSERY","d":false,"s":[]},{"l":"Lakes travel","d":false,"s":[]},{"l":"Minutes","d":false,"s":[{"l":"Actions (Andrea form)","d":false},{"l":"Dave AC POs","d":false},{"l":"Dave Boiler POs","d":false}]},{"l":"Copperpot","d":false,"s":[]},{"l":"3563.44","d":false,"s":[]}]},{"personal":[{"l":"Pay Credit Card","d":false,"s":[{"l":"Chels cancel","d":false}]},{"l":"Car Insurance / RAC","d":false,"s":[]}],"work":[{"l":"Onward 5 year plan","d":false,"s":[]},{"l":"GMP data centre","d":false,"s":[]}]},{"personal":[{"l":"Pay Credit Card / Amex","d":false,"s":[{"l":"Pay Amex / Set up direct debit","d":false}]},{"l":"Malaga relocation plan","d":false,"s":[]},{"l":"Personal CC Expenses","d":false,"s":[]},{"l":"Returns / Asos Return","d":false,"s":[]},{"l":"Car Insurance / RAC","d":false,"s":[]}],"work":[{"l":"Carol catch up notes / chase orders","d":false,"s":[{"l":"Cashflow","d":false},{"l":"Invoices Owed","d":false},{"l":"Sub Con Invoicing","d":false}]},{"l":"GMP 3 site installs meeting / dan email","d":false,"s":[]},{"l":"Onward boiler replacement specs & tender","d":false,"s":[{"l":"-Pick 26/27 Files","d":false}]}]}],"f":{"personal":[{"l":"Babyproofing","d":false,"s":[]},{"l":"Returns Money","d":false,"s":[]},{"l":"Irish Passport","d":false,"s":[{"l":"Corby Actions","d":false}]},{"l":"CSCS","d":false,"s":[]},{"l":"ADHD Doctor Appointment","d":false,"s":[]},{"l":"Vaccine research reasoning","d":false,"s":[{"l":"Vaccine Refusal Letter","d":false}]},{"l":"Three phone contract bill","d":false,"s":[{"l":"Change Chels to use abroad","d":false},{"l":"Esim revolut?","d":false}]}],"work":[{"l":"GMP Nexus House & Bury / Rochdale","d":false,"s":[{"l":"Ring Spike","d":false}]},{"l":"Update BP","d":false,"s":[{"l":"Plan for Salaries & Dividend","d":false},{"l":"plan for mark business meeting, pay him","d":false},{"l":"Insurnace","d":false}]},{"l":"Increased Onward Audits & audit reports","d":false,"s":[]},{"l":"Fusion CWBS Tender","d":false,"s":[]},{"l":"Update BP","d":false,"s":[{"l":"Plan for Salaries & Dividend","d":false},{"l":"plan for mark business meeting, pay him","d":false},{"l":"Insurnace","d":false}]},{"l":"Save claude financial information in the onedrive","d":false,"s":[]},{"l":"Onward 5 year plan","d":false,"s":[]}]}}};
-  Object.entries(JULY).forEach(([iso,wd])=>{ const [yy,mm,dd]=iso.split('-').map(Number); const days=emptyWeekDays(iso); wd.d.forEach((dayObj,i)=>{ ['personal','work'].forEach(k=>{ (dayObj[k]||[]).forEach(r=>days[i][k].push(mkTask(r,k))); }); }); weeks[iso]={ key:iso, monday:[yy,mm-1,dd], days, future:{ personal:wd.f.personal.map(r=>mkTask(r,'personal')), work:wd.f.work.map(r=>mkTask(r,'work')) } }; });
-  const db = { weeks, recur, inbox:[], projects:[], shopping:[], health:sampleHealth(), savedAt:Date.now(), v:3 };
+  const [sy,sm,sd]=todayMonday.split('-').map(Number);
+  const wk={ key:todayMonday, monday:[sy,sm-1,sd], days:emptyWeekDays(todayMonday), future:{personal:[],work:[]}, weekend:{personal:[],work:[]} };
+  recur.forEach(r=>{ const di=DOW.indexOf(r.day); if(di<0) return; if(addDays(todayMonday,di)<todayISO) return; wk.days[di][r.lane].push(T(r.label, r.lane, {subs:(r.subs||[]).slice(), repeat:'weekly'})); });
+  wk.days[todayDayIdx()].personal.push(T('Welcome back — tick me off to test the checkmark','personal'));
+  wk.future.personal.push(T('Unscheduled tasks live here in Future','personal'));
+  const db = { weeks:{ [todayMonday]:wk }, recur, inbox:[], projects:[], shopping:[], health:sampleHealth(), gym:{}, savedAt:Date.now(), v:3 };
   installDefaultProjects(db);
   return db;
 }
@@ -504,8 +511,16 @@ function installDefaultProjects(db){
 
 /* ---------- state + persistence ---------- */
 let DB;
+// scan every task + sub id and make sure the uid counter is past them — a stale _uid
+// (the 1–2 Aug duplicate-id incident) can otherwise reissue ids that already exist
+function reseedUID(db){
+  let mx=0; const look=t=>{ const m=/^t(\d+)$/.exec(t.id||''); if(m) mx=Math.max(mx,+m[1]); (t.subs||[]).forEach(s=>{ const n=/^t(\d+)$/.exec(s.id||''); if(n) mx=Math.max(mx,+n[1]); }); };
+  Object.values(db.weeks||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>{ (d.personal||[]).forEach(look); (d.work||[]).forEach(look); }); ['future','weekend'].forEach(z=>{ if(wk&&wk[z]){ (wk[z].personal||[]).forEach(look); (wk[z].work||[]).forEach(look); } }); });
+  (db.shopping||[]).forEach(look);
+  UID=Math.max(UID, mx+1);
+}
 function loadDB(){
-  try{ const raw=localStorage.getItem(STORE_KEY); if(raw){ const o=JSON.parse(raw); UID=(o._uid||1000); migrate(o); return o; } }catch(e){}
+  try{ const raw=localStorage.getItem(STORE_KEY); if(raw){ const o=JSON.parse(raw); UID=(o._uid||1000); migrate(o); reseedUID(o); return o; } }catch(e){}
   return buildSeed();
 }
 // additive migration: never removes/overwrites — only fills new optional fields on older data
@@ -514,6 +529,7 @@ function migrate(db){
   if(!db.inbox) db.inbox=[];
   if(!db.recur) db.recur=[];
   if(!db.shopping) db.shopping=[];
+  if(!db.gym || typeof db.gym!=='object') db.gym={};
   if(!db.health) db.health=sampleHealth();
   if(db.health && !db.health.days) db.health.days={};
   const fix=t=>{
@@ -538,9 +554,13 @@ function migrate(db){
     if(!wk.key) wk.key=iso;
     if(!Array.isArray(wk.monday)){ const [y,m,d]=iso.split('-').map(Number); if(y&&m&&d) wk.monday=[y,m-1,d]; }
     if(!Array.isArray(wk.days)) wk.days=emptyWeekDays(iso);
+    if(wk.days.length!==7){ const full=emptyWeekDays(iso); for(let i=0;i<7;i++){ if(!wk.days[i]||typeof wk.days[i]!=='object') wk.days[i]=full[i]; } wk.days.length=7; }
+    { const full=emptyWeekDays(iso); wk.days.forEach((d,i)=>{ ['dow','n','month'].forEach(k=>{ if(d[k]===undefined) d[k]=full[i][k]; }); if(!Array.isArray(d.appts)) d.appts=[]; }); }
     wk.days.forEach(d=>['personal','work'].forEach(k=>{ if(!Array.isArray(d[k])) d[k]=[]; d[k].forEach(fix); }));
     if(!wk.future || typeof wk.future!=='object') wk.future={personal:[],work:[]};
     ['personal','work'].forEach(k=>{ if(!Array.isArray(wk.future[k])) wk.future[k]=[]; wk.future[k].forEach(fix); });
+    if(!wk.weekend || typeof wk.weekend!=='object') wk.weekend={personal:[],work:[]};
+    ['personal','work'].forEach(k=>{ if(!Array.isArray(wk.weekend[k])) wk.weekend[k]=[]; wk.weekend[k].forEach(fix); });
   });
   if(!db.projects.length) installDefaultProjects(db);
 }
@@ -568,19 +588,39 @@ function curWeek(){ return DB.weeks[ui.weekKey]; }
 function ensureWeek(iso){
   if(!DB.weeks[iso]){
     const [y,m,d]=iso.split('-').map(Number);
-    DB.weeks[iso] = { key:iso, monday:[y,m-1,d], days:emptyWeekDays(iso), future:{personal:[],work:[]} };
+    DB.weeks[iso] = { key:iso, monday:[y,m-1,d], days:emptyWeekDays(iso), future:{personal:[],work:[]}, weekend:{personal:[],work:[]} };
     applyRecurring(DB.weeks[iso]);
   }
+  if(!DB.weeks[iso].weekend) DB.weeks[iso].weekend={personal:[],work:[]};
   return DB.weeks[iso];
 }
+function daysBetween(a,b){ const [y1,m1,d1]=a.split('-').map(Number),[y2,m2,d2]=b.split('-').map(Number); return Math.round((Date.UTC(y2,m2-1,d2)-Date.UTC(y1,m1-1,d1))/86400000); }
 function applyRecurring(week){
   (DB.recur||[]).forEach(r=>{
+    if(r.type==='interval'){
+      const every=Math.max(1,+r.every||1); const anchor=r.anchor;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(anchor||'')) return;
+      for(let i=0;i<7;i++){
+        const iso=addDays(week.key,i);
+        if(iso<anchor) continue;
+        if(iso<todayISO) continue;                 // never materialise instances on days already gone
+        if(daysBetween(anchor,iso)%every!==0) continue;
+        const arr=week.days[i][r.lane]; if(!arr) continue;
+        if(!arr.some(t=>t.label===r.label)) arr.push(T(r.label, r.lane, {subs:(r.subs||[]).slice(), repeat:'every '+every+'d'}));
+      }
+      return;
+    }
     const di = DOW.indexOf(r.day); if(di<0) return;
+    if(addDays(week.key,di)<todayISO) return;      // never materialise instances on days already gone
     const arr = week.days[di][r.lane];
     if(!arr.some(t=>t.label===r.label)) arr.push(T(r.label, r.lane, {subs:(r.subs||[]).slice(), repeat:'weekly'}));
   });
 }
-function colArr(week, dayIdx, kind){ return dayIdx==='F' ? week.future[kind] : week.days[dayIdx][kind]; }
+// re-apply recurring rules to every already-created week from startKey forward (idempotent — label-match dedupe)
+function applyRecurringFrom(startKey){
+  Object.keys(DB.weeks).filter(k=>k>=startKey).forEach(k=>{ const wk=DB.weeks[k]; if(wk&&Array.isArray(wk.days)) applyRecurring(wk); });
+}
+function colArr(week, dayIdx, kind){ return dayIdx==='F' ? week.future[kind] : dayIdx==='W' ? week.weekend[kind] : week.days[dayIdx][kind]; }
 
 function sortTimed(arr){
   return arr.map((t,i)=>[t,i]).sort((a,b)=>{
@@ -603,10 +643,11 @@ const view = document.getElementById('view');
 function render(){
   document.body.className = 'v-'+ui.view;
   document.body.dataset.lay = isLap()?'lap':'phone';
-  if(!ui.weekKey) ui.weekKey = DB.weeks[todayMonday] ? todayMonday : Object.keys(DB.weeks).sort()[0];
+  if(!ui.weekKey){ ensureWeek(todayMonday); ui.weekKey = todayMonday; }   // always open on the real current week
   renderChrome();
   if(ui.view==='today') renderToday();
   else if(ui.view==='week') renderWeek();
+  else if(ui.view==='weekplus') renderWeekPlus();
   else if(ui.view==='projects') renderProjects();
   else if(ui.view==='project') renderProjectDetail(ui.projectId);
   else if(ui.view==='reminders') renderReminders();
@@ -618,7 +659,8 @@ function render(){
 }
 function viewTransition(cb){
   if(document.startViewTransition){
-    let vt; try{ vt=document.startViewTransition(cb); }catch(e){ cb(); return; }
+    const safe=()=>{ try{ cb(); }catch(err){ console.error('render failed', err); try{ flashToast('View failed to render — your data is safe'); }catch(e2){} } };
+    let vt; try{ vt=document.startViewTransition(safe); }catch(e){ safe(); return; }
     // a skipped/interrupted transition rejects these promises — swallow so it never surfaces as an unhandled rejection
     try{ vt.ready&&vt.ready.then(null,()=>{}); vt.finished&&vt.finished.then(null,()=>{}); vt.updateCallbackDone&&vt.updateCallbackDone.then(null,()=>{}); }catch(e){}
   } else cb();
@@ -640,15 +682,15 @@ function tabIcon(kind){
   if(kind==='dots') return '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
   return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/></svg>';
 }
-function activeTab(){ return ui.view==='project'?'projects':(ui.view==='reminders'?'reminders':ui.view); }
+function activeTab(){ return ui.view==='project'?'projects':(ui.view==='reminders'?'reminders':(ui.view==='weekplus'?'weekplus':ui.view)); }
 function renderChrome(){
   const at=activeTab();
   document.getElementById('tabbar').innerHTML = TABS.map(t=>
-    `<button class="tab ${at===t[0]?'on':''}" data-go="${t[0]}">${tabIcon(t[2]||t[0])}<span class="tl">${t[1]}</span></button>`).join('');
+    `<button class="tab ${(at===t[0]||(t[0]==='week'&&at==='weekplus'))?'on':''}" data-go="${t[0]}">${tabIcon(t[2]||t[0])}<span class="tl">${t[1]}</span></button>`).join('');
   const lap = document.getElementById('lapnav');
   if(isLap()){
     const dc=dueCount();
-    const chips=[['today','Today'],['week','Week'],['projects','Projects'],['reminders','Reminders'],['review','Review'],['more','More']];
+    const chips=[['today','Today'],['week','Week'],['weekplus','Week+'],['projects','Projects'],['reminders','Reminders'],['review','Review'],['more','More']];
     lap.innerHTML =
       `<div class="brand"><span class="mk">P</span>Planner</div>
        <div class="lnav">${chips.map(t=>`<button data-go="${t[0]}" class="${at===t[0]?'on':''}">${t[1]}${t[0]==='reminders'&&dc?`<span class="bdg">${dc}</span>`:''}</button>`).join('')}</div>
@@ -669,14 +711,15 @@ function taskRow(t, ctx, opts={}){
   const sel = `data-w="${ctx.w}" data-d="${ctx.d}" data-k="${t.kind}" data-id="${t.id}"`;
   const time = t.time ? `<span class="pill time">${t.time.replace('-','–')}</span>` : '';
   const subsPill = sc ? `<span class="pill subs ${sd===sc?'alldone':''}" data-act="toggle">${sd}/${sc}</span>` : '';
-  const chev = sc ? `<button class="chev ${t.open?'open':''}" data-act="toggle" aria-label="sub-tasks">${CHEVRON}</button>` : '';
+  const chev = `<button class="chev ${t.open?'open':''} ${sc?'':'faint'}" data-act="toggle" aria-label="sub-tasks">${CHEVRON}</button>`;
   const stuck = t.defers>=3 ? `<span class="stuck" title="carried ${t.defers} weeks">park me?</span>` : '';
+  const tag = opts.tag ? `<span class="pill subs wctag">${opts.tag}</span>` : '';
   const grip = opts.grip ? `<span class="grip" data-act="grip">⠿</span>` : '';
   let html = `<div class="t ${t.kind==='work'?'kwork':''} ${t.done?'done':''}" ${sel}>
       ${grip}
       <button class="check" data-act="check" aria-label="complete">${CHK}</button>
       <span class="lab" data-act="edit">${esc(t.label)}</span>
-      ${stuck}${claudePill(t)}${remindPill(t)}${time}${subsPill}${chev}
+      ${tag}${stuck}${claudePill(t)}${remindPill(t)}${time}${subsPill}${chev}
     </div>`;
   if(t.open && sc>=0){
     const items = t.subs.map((s,j)=>`<div class="sub ${s.done?'done':''}" data-sub="${j}">
@@ -694,7 +737,7 @@ function listHTML(arr, ctx, opts){
 
 /* ----- TODAY ----- */
 function renderToday(){
-  const wk = DB.weeks[todayMonday] || curWeek();
+  const wk = ensureWeek(todayMonday);
   const wKey = wk.key, di = todayDayIdx();
   const d = wk.days[di];
   const all = dayTasks(wk, di);
@@ -706,6 +749,7 @@ function renderToday(){
   const head = `<div class="dayhead ${isLap()?'lap':''}">
       <div><div class="dow">${DOWFULL[di]}</div><div class="date"><b>${date}</b> · this week</div></div>
       <div class="headright">
+        <button class="gymchip ${DB.gym&&DB.gym[todayISO]?'on':''}" data-act="gym" data-date="${todayISO}">${DB.gym&&DB.gym[todayISO]?'🏋 Gym ✓':'🏋 Gym?'}</button>
         <button class="bell" data-go="reminders" aria-label="reminders"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg>${dc?`<span class="bdg">${dc}</span>`:''}</button>
         <div class="streak"><span class="ring">✓</span><span class="num">${ui.doneToday}</span><span class="lab">done<br>today</span></div>
       </div>
@@ -732,7 +776,7 @@ function renderToday(){
         ${(next.time||sc)?`<div class="meta">${next.time?`<span class="pill time">${next.time.replace('-','–')}</span>`:''}${sc?`<span class="pill subs ${sd===sc?'alldone':''}">${sd}/${sc} steps</span>`:''}</div>`:''}
       </div>`;
   }
-  if(then.length && !ui.mvd){
+  if(then.length && !ui.fullDay){
     body += `<div class="eyebrow">Then<span class="ln"></span></div>` + listHTML(then, {w:wKey,d:di,k:'mix'}, {});
   }
 
@@ -779,39 +823,83 @@ function renderWeek(){
   const tag = isThis?'this week':(isPast?'past':'ahead');
 
   if(isLap()){
-    const mkCol=(di)=>{ const d=wk.days[di]; const isToday=(ui.weekKey===todayMonday && di===todayDayIdx()); return `<div class="col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span></div>${apptsBlock(addDays(ui.weekKey,di))}${laneHTML(wk,di,'personal')}${laneHTML(wk,di,'work')}</div>`; };
+    const mkCol=(di)=>{ const d=wk.days[di]; const iso=addDays(ui.weekKey,di); const isToday=(ui.weekKey===todayMonday && di===todayDayIdx()); return `<div class="col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${iso<=todayISO?`<button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>`:''}</div>${apptsBlock(iso)}${laneHTML(wk,di,'personal')}${laneHTML(wk,di,'work')}</div>`; };
     const weekRow=[0,1,2,3,4].map(mkCol).join('');
-    const weekendRow=[5,6].map(mkCol).join('') + `<div class="col fut"><div class="colhead"><span class="dw">Future</span><span class="nn">∞</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
+    const wkndCol=`<div class="col wkd"><div class="colhead"><span class="dw">Weekend</span><span class="nn">w/c ${sd} ${MON[sm-1]}</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
+    const odCol=overdueColHTML('');
+    const weekendRow=odCol+wkndCol+[5,6].map(mkCol).join('') + `<div class="col fut"><div class="colhead"><span class="dw">Future</span><span class="nn">unscheduled</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
     view.innerHTML = `<div class="lapwrap">
         <div class="weekhead lap ${isPast?'past':''}">
           <div class="rng">${range} <small>${tag}</small></div>
-          <div class="navbtns"><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
+          <div class="navbtns"><button class="viewtog" data-go="weekplus" title="7-day strip view" aria-label="switch to Week plus strip view">⇄ Week+</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
         </div>
         ${carryBtn(wk,isPast)}
+        ${carryNextBtn(wk)}
         <div class="weeklabel">Week <span>Mon–Fri</span></div>
         <div class="weekgrid">${weekRow}</div>
-        <div class="weeklabel">Weekend <span>Sat–Sun · + Future</span></div>
-        <div class="weekgrid wkend">${weekendRow}</div>
+        <div class="weeklabel">Weekend <span>floating · Sat–Sun · + Future${odCol?' · + not done':''}</span></div>
+        <div class="weekgrid wkend ${odCol?'haslate':''}">${weekendRow}</div>
       </div>`;
   } else {
     // phone: day strip + single day
-    const strip = wk.days.map((d,i)=>{
+    const mkDp=(i)=>{ const d=wk.days[i];
       const isToday=(ui.weekKey===todayMonday && i===todayDayIdx());
       const np=d.personal.length, nw=d.work.length;
       const dots = (np?'<span class="dt p"></span>':'')+(nw?'<span class="dt w"></span>':'');
       return `<button class="dp ${ui.dayIdx===i?'sel':''} ${isToday?'today':''}" data-day="${i}">
           <span class="d">${d.dow}</span><span class="n">${d.n}</span><span class="dots">${dots}</span></button>`;
-    }).join('') + `<button class="dp fut ${ui.dayIdx==='F'?'sel':''}" data-day="F"><span class="d">Fut</span><span class="n">∞</span><span class="dots"></span></button>`;
+    };
+    const nWknd=(wk.weekend?wk.weekend.personal.length+wk.weekend.work.length:0);
+    const nLate=(ui.weekKey===todayMonday)?pastUnfinishedAll().length:0;
+    const strip = (nLate?`<button class="dp late ${ui.dayIdx==='L'?'sel':''}" data-day="L"><span class="d">Late</span><span class="n">${nLate}</span><span class="dots"></span></button>`:'')
+      + [0,1,2,3,4].map(mkDp).join('')
+      + `<button class="dp wkd ${ui.dayIdx==='W'?'sel':''}" data-day="W"><span class="d">W/e</span><span class="n">${nWknd||'·'}</span><span class="dots"></span></button>`
+      + [5,6].map(mkDp).join('')
+      + `<button class="dp fut ${ui.dayIdx==='F'?'sel':''}" data-day="F"><span class="d">Fut</span><span class="n">∞</span><span class="dots"></span></button>`;
 
     view.innerHTML = `
       <div class="weekhead ${isPast?'past':''}">
         <div class="rng">${range} <small>${tag}</small></div>
-        <div class="navbtns"><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
+        <div class="navbtns"><button class="viewtog" data-go="weekplus" title="7-day strip view" aria-label="switch to Week plus strip view">⇄</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
       </div>
       ${carryBtn(wk,isPast)}
+      ${carryNextBtn(wk)}
       <div class="daystrip">${strip}</div>
       <div id="swipe"><div class="dayview" id="dayview">${dayViewHTML(wk)}</div></div>`;
   }
+}
+/* ----- WEEK+ (horizontal snap strip · pool → Mon–Fri → Weekend → Sat/Sun → next week) ----- */
+function renderWeekPlus(){
+  const wk = ensureWeek(ui.weekKey);
+  const nxKey = addDays(ui.weekKey,7);
+  const nwk = ensureWeek(nxKey);
+  const start=ui.weekKey, end=addDays(start,6);
+  const [sy,sm,sd]=start.split('-').map(Number), [ey,em,ed]=end.split('-').map(Number), [ny,nm,nd]=nxKey.split('-').map(Number);
+  const range=`${sd} ${MON[sm-1]} – ${ed} ${MON[em-1]}`;
+  const isThis=ui.weekKey===todayMonday, isPast=ui.weekKey<todayMonday;
+  const tag=isThis?'this week':(isPast?'past':'ahead');
+  const gymDot=(iso)=> iso<=todayISO ? `<button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>` : '';
+  const poolCol=`<div class="col fut wp-col"><div class="colhead"><span class="dw">w/c ${sd} ${MON[sm-1]}</span><span class="nn">Future</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
+  const dayCol=(i)=>{ const d=wk.days[i]; const iso=addDays(ui.weekKey,i); const isToday=(isThis&&i===todayDayIdx());
+    return `<div class="col wp-col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${gymDot(iso)}</div>${apptsBlock(iso)}${laneHTML(wk,i,'personal')}${laneHTML(wk,i,'work')}</div>`; };
+  const wkndCol=`<div class="col wkd wp-col"><div class="colhead"><span class="dw">Weekend</span><span class="nn">floating</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
+  const nextCol=`<div class="col nxt wp-col"><div class="colhead"><span class="dw">Next week</span><span class="nn">w/c ${nd} ${MON[nm-1]}</span></div>${laneHTML(nwk,'F','personal')}${laneHTML(nwk,'F','work')}</div>`;
+  const odCol=overdueColHTML('wp-col');
+  const cols=[odCol, poolCol, dayCol(0),dayCol(1),dayCol(2),dayCol(3),dayCol(4), wkndCol, dayCol(5),dayCol(6), nextCol].join('');
+  const wrap = isLap()?'<div class="lapwrap wide">':'';
+  view.innerHTML = wrap+`
+    <div class="weekhead ${isLap()?'lap':''} ${isPast?'past':''}">
+      <div class="rng">${range} <small>${tag} · Week+</small></div>
+      <div class="navbtns"><button class="viewtog" data-go="week" title="back to week view" aria-label="switch back to week view">⇄ Week</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
+    </div>
+    ${carryBtn(wk,isPast)}
+    ${carryNextBtn(wk)}
+    ${odCol?`<button class="latejump" data-act="latejump" aria-label="scroll to the not-done column">⇠ Not done · ${pastUnfinishedAll().length} from past weeks</button>`:''}
+    <div class="wp-scroll" id="wpscroll">${cols}</div>
+    <div class="wp-hint">${isLap()?'right-click a task to move it · drag between columns':'hold a task to move it · columns snap'}</div>`+(isLap()?'</div>':'');
+  // fixed anchor: today sits one column in from the left; other weeks open at the pool
+  const sc=document.getElementById('wpscroll');
+  if(sc){ let idx=0; if(isThis){ const td=todayDayIdx(); idx=(td<=4?1+td:(td===5?7:8)); idx=Math.max(0,idx-1); if(odCol) idx+=1; } const cw=sc.querySelectorAll('.wp-col'); if(cw[idx]) sc.scrollLeft=Math.max(0, cw[idx].offsetLeft - sc.offsetLeft - 8); }
 }
 function laneHTML(wk, di, kind){
   const arr = sortTimed(colArr(wk,di,kind));
@@ -823,6 +911,19 @@ function laneHTML(wk, di, kind){
 }
 function dayViewHTML(wk){
   const di = ui.dayIdx;
+  if(di==='L'){
+    const items=pastUnfinishedAll();
+    const rows=items.map(x=>taskRow(x.t,{w:x.wk.key,d:x.di},{tag:'w/c '+wcShort(x.wk.key)})).join('');
+    return `<div class="dayhead"><div><div class="dow">Not done</div><div class="date">left in past weeks · tick here, or hold a task to move it into a day</div></div></div>
+      ${items.length?`<button class="carry soft" data-act="pullpools">⇪ Move all ${items.length} → this week's Future</button><div class="list latelist">${rows}</div>`:`<div class="empty"><div class="ic">✓</div><div class="h">Nothing left behind.</div><div class="s">Past weeks are clear.</div></div>`}`;
+  }
+  if(di==='W'){
+    const p=sortTimed(wk.weekend.personal), w=sortTimed(wk.weekend.work);
+    const [sy,sm,sd]=wk.key.split('-').map(Number);
+    return `<div class="dayhead"><div><div class="dow">Weekend</div><div class="date">w/c ${sd} ${MON[sm-1]} · floating — sort into Sat/Sun when you're ready</div></div></div>
+      <div class="eyebrow p">Personal<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="W" data-k="personal">+ add</button><span class="ln"></span></div>${p.length?listHTML(p,{w:wk.key,d:'W',k:'personal'},{grip:true}):miniEmpty()}
+      <div class="eyebrow w">Work<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="W" data-k="work">+ add</button><span class="ln"></span></div>${w.length?listHTML(w,{w:wk.key,d:'W',k:'work'},{grip:true}):miniEmpty()}`;
+  }
   if(di==='F'){
     const p=sortTimed(wk.future.personal), w=sortTimed(wk.future.work);
     return `<div class="dayhead"><div><div class="dow">Future</div><div class="date">carries across weeks</div></div></div>
@@ -838,11 +939,23 @@ function dayViewHTML(wk){
     ${total===0?`<div class="empty"><div class="ic">🗓️</div><div class="h">Nothing here yet.</div><div class="s">Add one below — it lands on ${d.dow}.</div></div>`:''}`;
 }
 function miniEmpty(){ return `<div class="empty" style="padding:14px"><div class="s">Nothing yet.</div></div>`; }
+function unfinishedCount(wk){
+  let n=0; wk.days.forEach(d=>{ d.personal.forEach(t=>{if(!t.done)n++;}); d.work.forEach(t=>{if(!t.done)n++;}); });
+  if(wk.weekend) ['personal','work'].forEach(k=>wk.weekend[k].forEach(t=>{if(!t.done)n++;}));
+  if(wk.future) ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{if(!t.done)n++;}));
+  return n;
+}
 function carryBtn(wk,isPast){
   if(!isPast) return '';
-  let n=0; wk.days.forEach(d=>{ d.personal.forEach(t=>{if(!t.done)n++;}); d.work.forEach(t=>{if(!t.done)n++;}); });
+  const n=unfinishedCount(wk);
   if(!n) return `<button class="carry zero" disabled>✓ Nothing left unfinished this week</button>`;
   return `<button class="carry" data-act="carry">↪ Move ${n} unfinished task${n!==1?'s':''} → this week</button>`;
+}
+function carryNextBtn(wk){
+  if(wk.key!==todayMonday) return '';
+  const n=unfinishedCount(wk); if(!n) return '';
+  const nx=addDays(wk.key,7); const [ny,nm,nd]=nx.split('-').map(Number);
+  return `<button class="carry soft" data-act="carrynext">↪ Carry ${n} unfinished → w/c ${nd} ${MON[nm-1]} Future</button>`;
 }
 function navArrow(d){ return d==='l'?'<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>':'<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>'; }
 
@@ -854,15 +967,18 @@ function renderReview(){
     d.personal.forEach(t=>{pt++; if(t.done){pd++;done.push([t,d]);} if(t.defers>=3)stuck.push({t,w:wk.key,d:di}); if(t.claude)claudeTasks.push(t);});
     d.work.forEach(t=>{wt++; if(t.done){wd++;done.push([t,d]);} if(t.defers>=3)stuck.push({t,w:wk.key,d:di}); if(t.claude)claudeTasks.push(t);});
   });
+  // stuck tasks hiding in the Future / Weekend lanes count too — that's where avoided tasks live
+  ['future','weekend'].forEach(zone=>{ if(!wk[zone]) return; ['personal','work'].forEach(k=>wk[zone][k].forEach(t=>{ if(!t.done && t.defers>=3) stuck.push({t,w:wk.key,d:zone==='future'?'F':'W'}); })); });
   const tot=pt+wt, dn=pd+wd, pct=tot?Math.round(dn/tot*100):0;
   const card = (k,v,s)=>`<div style="flex:1;background:var(--paper);border:1px solid var(--hair);border-radius:14px;padding:14px;box-shadow:var(--shadow-1)"><div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:740;color:var(--muted)">${k}</div><div style="font-size:24px;font-weight:760;margin-top:3px">${v}</div><div style="font-size:11.5px;color:var(--muted);font-weight:560">${s}</div></div>`;
   const wrap = isLap()?'<div class="lapwrap" style="max-width:760px">':'';
   const balance = tot? (wt>pt*1.6?'work-heavy':(pt>wt*1.6?'personal-heavy':'fairly balanced')) : 'quiet';
-  const sdW=weekSleepDebt(ui.weekKey); let exD=0, stepSum=0, stepN=0; for(let i=0;i<7;i++){ const r=healthDay(addDays(ui.weekKey,i)); if(r){ if(r.exercised)exD++; if(r.steps!=null){ stepSum+=r.steps; stepN++; } } }
-  const bodyCard = `<div class="eyebrow">This week · body<span class="ln"></span></div>
+  const realHealth=DB.health&&DB.health.source!=='sample';
+  const sdW=weekSleepDebt(ui.weekKey); let exD=0, stepSum=0, stepN=0; for(let i=0;i<7;i++){ const iso=addDays(ui.weekKey,i); const r=healthDay(iso); const g=DB.gym&&DB.gym[iso]; if((realHealth&&r&&r.exercised)||g)exD++; if(r&&r.steps!=null){ stepSum+=r.steps; stepN++; } }
+  const bodyCard = `<div class="eyebrow">This week · body${DB.health&&DB.health.source==='sample'?' · sleep/steps are sample data':''}<span class="ln"></span></div>
     <div class="hribbon" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr))">
       <div class="hstat"><span class="hk">Sleep debt</span><span class="hv">${sdW.total>0?'−'+fmtHM(sdW.total):'0m'}</span><span class="hs ${sdW.total>0?'deficit':'ok'}">over ${sdW.tracked} night${sdW.tracked!==1?'s':''}</span></div>
-      <div class="hstat"><span class="hk">Exercise</span><span class="hv">${exD}</span><span class="hs">days this week</span></div>
+      <div class="hstat"><span class="hk">Exercise / gym</span><span class="hv">${exD}</span><span class="hs">days this week</span></div>
       <div class="hstat"><span class="hk">Avg steps</span><span class="hv">${stepN?Math.round(stepSum/stepN).toLocaleString():'—'}</span><span class="hs">${stepN} day${stepN!==1?'s':''} tracked</span></div>
     </div>`;
 
@@ -885,7 +1001,7 @@ function renderReview(){
 
   view.innerHTML = wrap + `
     <div class="dayhead"><div><div class="dow" style="font-size:26px">Weekly review</div><div class="date">you and Claude review the week — and the planner</div></div></div>
-    <div style="display:flex;gap:10px;margin-top:6px">${card('Done this week', dn, `of ${tot} · ${pct}%`)}${card('Personal', `${pd}/${pt}`, 'moved')}${card('Work', `${wd}/${wt}`, 'moved')}</div>
+    <div style="display:flex;gap:10px;margin-top:6px">${card('Done this week', dn, `of ${tot} · ${pct}%`)}${card('Personal', `${pd}/${pt}`, 'done')}${card('Work', `${wd}/${wt}`, 'done')}</div>
     <div style="height:10px;background:var(--good-wash);border-radius:7px;overflow:hidden;margin:14px 0 4px"><div style="height:100%;width:${pct}%;background:var(--good);border-radius:7px;transition:width .4s"></div></div>
     ${bodyCard}
     <div class="eyebrow claude">Claude's review<span class="ln"></span></div>
@@ -923,8 +1039,12 @@ function renderMore(){
     ${DB.inbox.length?`<div class="eyebrow">Inbox · ${DB.inbox.length}<button class="addmini" data-act="claude-triage">✶ sort with Claude</button><span class="ln"></span></div><div class="list">${DB.inbox.map((x,i)=>`<div class="t"><button class="check" data-act="inbox-done" data-i="${i}">${CHK}</button><span class="lab">${esc(x.label)}</span><button class="chev" data-act="inbox-del" data-i="${i}">✕</button></div>`).join('')}</div>`:''}
     <div class="eyebrow">Connections<span class="ln"></span></div>
     <div id="odbox">${renderConnectionsInner()}</div>
-    <div class="eyebrow">Recurring<span class="ln"></span></div>
-    <div class="list">${(DB.recur||[]).map(r=>`<div class="t ${r.lane==='work'?'kwork':''}"><span class="lab">${esc(r.label)} <span class="subdesc">${r.day} · ${r.lane}${r.subs.length?' · '+r.subs.length+' steps':''}</span></span><span class="pill subs">↻ weekly</span></div>`).join('')}</div>
+    <div class="eyebrow">Recurring<button class="addmini" data-act="addrecur">+ add</button><span class="ln"></span></div>
+    <div class="list">${(DB.recur||[]).map((r,ri)=>{
+      const fd=iso=>{ const p=(''+iso).split('-').map(Number); return p.length===3?(p[2]+' '+MON[p[1]-1]):iso; };
+      const pat = r.type==='interval' ? ('every '+r.every+' days · from '+fd(r.anchor)) : (r.day+' · weekly');
+      return `<div class="t ${r.lane==='work'?'kwork':''}"><span class="lab">${esc(r.label)} <span class="subdesc">${pat} · ${r.lane}${(r.subs&&r.subs.length)?' · '+r.subs.length+' steps':''}</span></span><span class="pill subs">↻ ${r.type==='interval'?r.every+'d':'wk'}</span><button class="chev" data-act="delrecur" data-ri="${ri}" title="remove rule" aria-label="remove recurring rule">✕</button></div>`;
+    }).join('')||'<div class="empty" style="padding:12px"><div class="s">No recurring tasks yet — add bins day, injections, anything on a cycle.</div></div>'}</div>
     ${isLap()?'</div>':''}`;
 }
 /* ============================================================
@@ -1008,12 +1128,12 @@ const APPROOT='/me/drive/special/approot:';
 /* ---- counts (works for BOTH old v2 and new schema) — used to assert zero-loss ---- */
 function countTasksIn(db){
   let tasks=0, subs=0; const walk=arr=>{ (arr||[]).forEach(t=>{ tasks++; subs+=(t.subs||[]).length; }); };
-  Object.values((db&&db.weeks)||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>{ walk(d.personal); walk(d.work); }); if(wk.future){ walk(wk.future.personal); walk(wk.future.work); } });
+  Object.values((db&&db.weeks)||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>{ walk(d.personal); walk(d.work); }); if(wk.future){ walk(wk.future.personal); walk(wk.future.work); } if(wk.weekend){ walk(wk.weekend.personal); walk(wk.weekend.work); } });
   if(Array.isArray(db&&db.days)){ db.days.forEach(d=>{ walk(d.personal); walk(d.work); }); }   // v2 top-level active week
   if(db&&db.future){ walk(db.future.personal); walk(db.future.work); }
   return { tasks, subs };
 }
-function exportShape(){ return JSON.stringify({ weeks:DB.weeks, recur:DB.recur, inbox:DB.inbox, projects:DB.projects, shopping:DB.shopping, health:DB.health, savedAt:Date.now(), v:3 }); }
+function exportShape(){ return JSON.stringify({ weeks:DB.weeks, recur:DB.recur, inbox:DB.inbox, projects:DB.projects, shopping:DB.shopping, health:DB.health, gym:DB.gym||{}, savedAt:Date.now(), v:3 }); }
 
 /* ---- reconcile: READ-ONLY look at the cloud ---- */
 async function odReconcile(){
@@ -1072,15 +1192,28 @@ async function openReconcile(){
       <button class="save" data-x="usecloud">Use cloud copy</button>
       <button class="save" data-x="usedevice" style="background:var(--w)">Keep this device</button>
     </div>
-    <div class="conn-d" style="margin-top:10px">“Use cloud” imports your real ${rc.tasks} tasks here (verified, zero-loss) and won’t write back until you tap <b>Make live</b>.</div></div>`;
+    <div class="conn-d" style="margin-top:10px">“Use cloud” replaces this device’s copy with the cloud’s ${rc.tasks} tasks — if the cloud holds fewer than this device, you’ll be warned before anything is discarded. Nothing writes back until you tap <b>Make live</b>.</div></div>`;
   dlg.querySelector('[data-x=cc]').addEventListener('click',closeDialog);
   dlg.querySelector('[data-x=usecloud]').addEventListener('click',()=>{
     const adopted=res.remote; const before=countTasksIn(adopted).tasks;
     if(!adopted.weeks){ flashToast('Cloud file has no weeks — not importing'); closeDialog(); return; }
     migrate(adopted); const after=countTasksIn(adopted).tasks;
-    if(after<before){ flashToast('Import would drop tasks — aborted, nothing changed'); closeDialog(); return; }  // zero-loss guard
-    DB.weeks=adopted.weeks; DB.recur=adopted.recur||DB.recur; if(adopted.projects)DB.projects=adopted.projects; if(adopted.inbox)DB.inbox=adopted.inbox; if(adopted.shopping)DB.shopping=adopted.shopping; if(adopted.health)DB.health=adopted.health;
-    saveDB(); closeDialog(); render(); flashToast(`Imported ${after} tasks from cloud ✓`); if(!odState.live) setTimeout(function(){ offerMakeLive(after); }, 500);
+    if(after<before){ flashToast('Import would drop tasks — aborted, nothing changed'); closeDialog(); return; }  // migration must never shrink the adopted copy
+    const doAdopt=()=>{
+      DB.weeks=adopted.weeks; DB.recur=adopted.recur||DB.recur; if(adopted.projects)DB.projects=adopted.projects; if(adopted.inbox)DB.inbox=adopted.inbox; if(adopted.shopping)DB.shopping=adopted.shopping; if(adopted.health)DB.health=adopted.health; if(adopted.gym)DB.gym=adopted.gym;
+      reseedUID(DB);   // adopted copy may carry higher ids than this device's counter — never reissue them
+      saveDB(); render(); flashToast(`Imported ${after} tasks from cloud ✓`); if(!odState.live) setTimeout(function(){ offerMakeLive(after); }, 500);
+    };
+    const localN=countTasksIn(DB).tasks;
+    closeDialog();
+    if(after<localN){
+      // THE 2 AUG GUARD: cloud is smaller than this device — adopting discards local-only tasks. Never silent.
+      openConfirm('Cloud copy holds FEWER tasks',
+        `The cloud copy has <b>${after}</b> tasks; this device has <b>${localN}</b>. Adopting the cloud copy will <b>discard the ${localN-after} task${localN-after!==1?'s':''}</b> that only exist on this device. If you're not certain the cloud is right, Cancel and choose “Keep this device” instead.`,
+        `Discard ${localN-after} & adopt cloud`, doAdopt);
+    } else {
+      doAdopt();
+    }
   });
   dlg.querySelector('[data-x=usedevice]').addEventListener('click',async()=>{ closeDialog(); await odMakeLive(); });
 }
@@ -1203,7 +1336,7 @@ function findTask(el){
   const dRaw=el.dataset.d!==undefined?el.dataset.d:el.closest('[data-d]')?.dataset.d;
   if(id==null||w==null) return null;
   const wk=DB.weeks[w]; if(!wk) return null;
-  const di = dRaw==='F'?'F':Number(dRaw);
+  const di = (dRaw==='F'||dRaw==='W')?dRaw:Number(dRaw);
   for(const kind of ['personal','work']){
     const arr=colArr(wk,di,kind); const idx=arr.findIndex(t=>t.id===id);
     if(idx>=0) return {wk,di,kind,arr,idx,t:arr[idx]};
@@ -1226,8 +1359,14 @@ document.addEventListener('click', e=>{
   if(act==='prevweek'){ stepWeek(-1); return; }
   if(act==='nextweek'){ stepWeek(1); return; }
   if(act==='carry'){ doCarry(); return; }
+  if(act==='carrynext'){ doCarryNext(); return; }
+  if(act==='pullpools'){ doPullPools(); return; }
+  if(act==='latejump'){ const sc=document.getElementById('wpscroll'); if(sc) sc.scrollTo({left:0,behavior:'smooth'}); return; }
+  if(act==='gym'){ const gd=a.dataset.date; if(gd){ DB.gym=DB.gym||{}; if(DB.gym[gd]){ delete DB.gym[gd]; } else { DB.gym[gd]=true; burstAt(a); } saveDB(); rerenderInPlace(); } return; }
+  if(act==='addrecur'){ openAddRecur(); return; }
+  if(act==='delrecur'){ const ri=+a.dataset.ri; const r=DB.recur[ri]; if(r) openConfirm('Remove recurring rule?', `“${esc(r.label)}” will stop being placed in new weeks. Tasks already placed stay exactly where they are.`, 'Remove rule', ()=>{ DB.recur.splice(ri,1); saveDB(); renderMore(); }); return; }
   if(act==='lapadd'){ const i=document.getElementById('lapnew'); addTaskTo(todayMonday,todayDayIdx(),ui.kind,i.value); i.value=''; return; }
-  if(act==='laneadd'){ openAddTask(a.dataset.w,a.dataset.d==='F'?'F':Number(a.dataset.d),a.dataset.k); return; }
+  if(act==='laneadd'){ openAddTask(a.dataset.w,(a.dataset.d==='F'||a.dataset.d==='W')?a.dataset.d:Number(a.dataset.d),a.dataset.k); return; }
   if(act==='inbox-done'){ const x=DB.inbox[+a.dataset.i]; addTaskTo(todayMonday,todayDayIdx(),'personal',x.label); DB.inbox.splice(+a.dataset.i,1); saveDB(); render(); return; }
   if(act==='inbox-del'){ DB.inbox.splice(+a.dataset.i,1); saveDB(); renderMore(); return; }
 
@@ -1294,6 +1433,7 @@ document.addEventListener('click', e=>{
 function rerenderInPlace(){
   if(ui.view==='today') renderToday();
   else if(ui.view==='week') renderWeek();
+  else if(ui.view==='weekplus') renderWeekPlus();
   else if(ui.view==='projects') renderProjects();
   else if(ui.view==='project') renderProjectDetail(ui.projectId);
   else if(ui.view==='reminders') renderReminders();
@@ -1327,7 +1467,8 @@ newtask.addEventListener('keydown', e=>{ if(e.key==='Enter') addFromBar(); });
 function addFromBar(){
   let wKey, di;
   if(ui.view==='today'){ wKey=todayMonday; di=todayDayIdx(); }
-  else { wKey=ui.weekKey; di=ui.dayIdx; }
+  else { wKey=ui.weekKey; di=(ui.dayIdx==='L')?todayDayIdx():ui.dayIdx; }   // the Late view isn't a lane — new tasks go to today
+  if(ui.dayIdx==='L'){ wKey=todayMonday; }
   if(addTaskTo(wKey,di,ui.kind,newtask.value)) newtask.value='';
 }
 // laptop add row enter
@@ -1357,10 +1498,78 @@ function doCarry(){
       }
     });
   });
+  // weekend + unscheduled pool carry too — nothing gets stranded in an old week
+  ['weekend','future'].forEach(zone=>{
+    if(!from[zone]) return;
+    ['personal','work'].forEach(kind=>{
+      for(let i=from[zone][kind].length-1;i>=0;i--){
+        const t=from[zone][kind][i];
+        if(!t.done){ t.defers=(t.defers||0)+1; to[zone][kind].push(t); from[zone][kind].splice(i,1); moved++; }
+      }
+    });
+  });
   saveDB();
   ui.weekKey=todayMonday;
   flashToast(`Moved ${moved} task${moved!==1?'s':''} to this week`);
   viewTransition(render);
+}
+// current week → next week's w/c pool (unfinished days + weekend + pool), deliberate, never automatic
+function doCarryNext(){
+  const from=curWeek(); const nx=addDays(from.key,7);
+  const n=unfinishedCount(from); if(!n) return;
+  const [ny,nm,nd]=nx.split('-').map(Number);
+  openDialog(`<h3>Carry to next week?</h3><p><b>${n}</b> unfinished task${n!==1?'s':''} will move to the <b>w/c ${nd} ${MON[nm-1]}</b> Future list for Sunday sorting. Ticked tasks stay put. Nothing is deleted.</p>
+    <div class="acts"><button class="cancel" data-x="no">Cancel</button><button class="save" data-x="yes">Carry ${n} forward</button></div>`);
+  dlg.querySelector('[data-x=no]').addEventListener('click',closeDialog);
+  dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{
+    closeDialog();
+    const to=ensureWeek(nx); let moved=0;
+    from.days.forEach(d=>{
+      ['personal','work'].forEach(kind=>{
+        for(let i=d[kind].length-1;i>=0;i--){ const t=d[kind][i]; if(!t.done){ t.defers=(t.defers||0)+1; to.future[kind].push(t); d[kind].splice(i,1); moved++; } }
+      });
+    });
+    ['weekend','future'].forEach(zone=>{
+      if(!from[zone]) return;
+      ['personal','work'].forEach(kind=>{
+        for(let i=from[zone][kind].length-1;i>=0;i--){ const t=from[zone][kind][i]; if(!t.done){ t.defers=(t.defers||0)+1; to.future[kind].push(t); from[zone][kind].splice(i,1); moved++; } }
+      });
+    });
+    saveDB(); ui.weekKey=nx;
+    flashToast(`Carried ${moved} → w/c ${nd} ${MON[nm-1]} Future — now viewing that week`);
+    viewTransition(render);
+  });
+}
+// EVERY unfinished task left in weeks before the current one — days, weekend and Future lanes.
+// Display-only aggregation: nothing moves until the user acts on a task.
+function pastUnfinishedAll(){
+  const out=[];
+  Object.keys(DB.weeks).filter(k=>k<todayMonday).sort().forEach(k=>{
+    const wk=DB.weeks[k]; if(!wk||!Array.isArray(wk.days)) return;
+    wk.days.forEach((d,di)=>['personal','work'].forEach(kind=>(d[kind]||[]).forEach(t=>{ if(!t.done) out.push({wk,di,kind,t}); })));
+    ['future','weekend'].forEach(zone=>{ if(!wk[zone]) return; ['personal','work'].forEach(kind=>wk[zone][kind].forEach(t=>{ if(!t.done) out.push({wk,di:zone==='future'?'F':'W',kind,t}); })); });
+  });
+  return out;
+}
+function wcShort(k){ const [y,m,d]=k.split('-').map(Number); return d+' '+MON[m-1]; }
+// the standing overdue column for Week / Week+ — shown only on the current week, only when non-empty
+function overdueColHTML(extraCls){
+  if(ui.weekKey!==todayMonday) return '';
+  const items=pastUnfinishedAll(); if(!items.length) return '';
+  const rows=items.map(x=>taskRow(x.t,{w:x.wk.key,d:x.di},{grip:true, tag:'w/c '+wcShort(x.wk.key)})).join('');
+  return `<div class="col late ${extraCls||''}"><div class="colhead"><span class="dw">Not done</span><span class="nn">past weeks · ${items.length}</span><button class="addmini warn" data-act="pullpools" title="move all into this week's Future for sorting" aria-label="move every overdue task into this week's Future">⇪ all</button></div>${rows?`<div class="list latelist">${rows}</div>`:''}</div>`;
+}
+function doPullPools(){
+  const s=pastUnfinishedAll(); if(!s.length) return;
+  const oldest=s.map(x=>x.wk.key).sort()[0];
+  openConfirm('Move all overdue in?',
+    `<b>${s.length}</b> unfinished task${s.length!==1?'s':''} from past weeks (back to w/c ${wcShort(oldest)}) will move into this week's Future list for sorting. Nothing is deleted, ticked tasks stay where they are.`,
+    `Move ${s.length} in`, ()=>{
+      const to=ensureWeek(ui.weekKey>=todayMonday?ui.weekKey:todayMonday);
+      s.forEach(({wk,di,kind,t})=>{ const arr=colArr(wk,di,kind); const i=arr.indexOf(t); if(i>=0){ arr.splice(i,1); t.defers=(t.defers||0)+1; to.future[kind].push(t); } });
+      saveDB(); flashToast(`Moved ${s.length} overdue task${s.length!==1?'s':''} into this week's Future`);
+      render();
+    });
 }
 
 /* ============================================================
@@ -1369,12 +1578,24 @@ function doCarry(){
 const dlg=document.getElementById('dlg');
 function openDialog(html){ dlg.innerHTML=`<div class="dlg">${html}</div>`; dlg.showModal(); const f=dlg.querySelector('input,textarea'); if(f){ setTimeout(()=>{f.focus(); if(f.select)f.select();},30); } }
 function closeDialog(){ dlg.close(); }
+// themed yes/no — replaces native confirm() so every confirmation looks like the app
+function openConfirm(h, p, yesLabel, onYes){
+  openDialog(`<h3>${h}</h3><p>${p}</p><div class="acts"><button class="cancel" data-x="no">Cancel</button><button class="save" data-x="yes">${yesLabel}</button></div>`);
+  dlg.querySelector('[data-x=no]').addEventListener('click',closeDialog);
+  dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{ closeDialog(); onYes(); });
+}
 dlg.addEventListener('click', e=>{ if(e.target===dlg) dlg.close(); });
 
 function openEdit(ctx){
   const {t,wk,di}=ctx;
   const projOpts = `<option value="">No project</option>`+(DB.projects||[]).map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
-  const dayOpts = wk.days.map((d,i)=>`<option value="${i}" ${di===i?'selected':''}>${d.dow} ${d.n}</option>`).join('')+`<option value="F" ${di==='F'?'selected':''}>Future</option>`;
+  const base=moveBaseFor(wk); const bwk=ensureWeek(base); const fromPast=base!==wk.key;
+  const nxIso=addDays(base,7); const [nxy,nxm,nxd]=nxIso.split('-').map(Number);
+  const dayOpts = (fromPast?`<option value="" selected>w/c ${wcShort(wk.key)} (leave where it is)</option>`:'')
+    + bwk.days.map((d,i)=>`<option value="${i}" ${(!fromPast&&di===i)?'selected':''}>${d.dow} ${d.n}</option>`).join('')
+    +`<option value="W" ${(!fromPast&&di==='W')?'selected':''}>Weekend (floating)</option>`
+    +`<option value="F" ${(!fromPast&&di==='F')?'selected':''}>Future</option>`
+    +`<option value="N">→ Next week · w/c ${nxd} ${MON[nxm-1]}</option>`;
   const modes=[['','Off'],['prompt','Prompt'],['workflow','Workflow'],['cowork','Cowork'],['code','Code']];
   openDialog(`<h3>Edit task</h3>
     <label>Task</label><input id="f-label" value="${esc(t.label).replace(/"/g,'&quot;')}" enterkeyhint="done" />
@@ -1382,6 +1603,7 @@ function openEdit(ctx){
       <div style="flex:1;min-width:0"><label>Day</label><select id="f-day">${dayOpts}</select></div>
       <div style="flex:1;min-width:0"><label>Project</label><select id="f-proj">${projOpts}</select></div>
     </div>
+    <label>Or move to a date</label><input id="f-movedate" type="date" />
     <label>Time · optional</label>
     <div class="timez"><input id="f-s" placeholder="09:00" value="${t.time?t.time.split('-')[0]:''}" inputmode="numeric"><span>–</span><input id="f-e" placeholder="10:00" value="${t.time?t.time.split('-')[1]:''}" inputmode="numeric"></div>
     <label>Do this in Claude</label>
@@ -1396,7 +1618,7 @@ function openEdit(ctx){
   dlg.querySelector('.acts').addEventListener('click', e=>{
     const x=e.target.closest('[data-x]')?.dataset.x; if(!x) return;
     if(x==='cancel'){ closeDialog(); return; }
-    if(x==='del'){ closeDialog(); if(confirm('Delete "'+t.label+'"?')){ ctx.arr.splice(ctx.idx,1); saveDB(); render(); } return; }
+    if(x==='del'){ closeDialog(); openConfirm('Delete task?', `“${esc(t.label)}”${t.subs.length?' and its '+t.subs.length+' sub-task'+(t.subs.length!==1?'s':''):''} will be removed. This can’t be undone.`, 'Delete', ()=>{ const p=ctx.arr.indexOf(t); if(p>=0)ctx.arr.splice(p,1); saveDB(); render(); }); return; }
     if(x==='save'){
       const lab=dlg.querySelector('#f-label').value.trim(); if(lab) t.label=lab;
       const s=dlg.querySelector('#f-s').value.trim(), en=dlg.querySelector('#f-e').value.trim();
@@ -1406,8 +1628,24 @@ function openEdit(ctx){
       t.claude = (dlg.querySelector('#f-claude .dchip.on')?.dataset.cm) || null;
       t.claudeLink = dlg.querySelector('#f-clink').value.trim() || null;
       const rv = dlg.querySelector('#f-remind').value; t.remind = rv || null;
-      const dv = dlg.querySelector('#f-day').value; const newDi = dv==='F'?'F':Number(dv);
-      if(newDi!==ctx.di){ const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1); colArr(ctx.wk,newDi,t.kind).push(t); }
+      const md=dlg.querySelector('#f-movedate').value;
+      const dv = dlg.querySelector('#f-day').value;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(md)){
+        const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
+        const wkKey=isoMonday(new Date(+md.slice(0,4),+md.slice(5,7)-1,+md.slice(8,10)));
+        const wk2=ensureWeek(wkKey); if(wkKey>ctx.wk.key) t.defers=(t.defers||0)+1;
+        wk2.days[daysBetween(wkKey,md)][t.kind].push(t);
+      } else if(dv==='N'){
+        const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
+        const nwk=ensureWeek(addDays(base,7)); t.defers=(t.defers||0)+1; nwk.future[t.kind].push(t);
+      } else if(dv!==''){
+        const newDi = (dv==='F'||dv==='W')?dv:Number(dv);
+        if(fromPast || newDi!==ctx.di){
+          const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
+          if(base>ctx.wk.key) t.defers=(t.defers||0)+1;
+          colArr(bwk,newDi,t.kind).push(t);
+        }
+      }
       closeDialog(); saveDB(); render();
     }
   });
@@ -1424,7 +1662,7 @@ function openAddSub(ctx){
   dlg.querySelector('#f-sub').addEventListener('keydown',e=>{ if(e.key==='Enter')done(); });
 }
 function openAddTask(wKey,di,kind){
-  const wk=DB.weeks[wKey]; const where = di==='F'?'Future':`${DOWFULL[di]||''}`;
+  const wk=DB.weeks[wKey]; const where = di==='F'?'Future':(di==='W'?'the Weekend lane':`${DOWFULL[di]||''}`);
   openDialog(`<h3>Add ${kind} task</h3><p>Lands in ${where}.</p>
     <input id="f-new" placeholder="What needs doing?" enterkeyhint="done" />
     <div class="acts"><button class="cancel" data-x="cancel">Cancel</button><button class="save" data-x="save">Add</button></div>`);
@@ -1432,6 +1670,81 @@ function openAddTask(wKey,di,kind){
   dlg.querySelector('[data-x="save"]').addEventListener('click',done);
   dlg.querySelector('[data-x="cancel"]').addEventListener('click',closeDialog);
   dlg.querySelector('#f-new').addEventListener('keydown',e=>{ if(e.key==='Enter')done(); });
+}
+function openAddRecur(){
+  openDialog(`<h3>Add recurring task</h3>
+    <label>Task</label><input id="r-label" placeholder="e.g. Bins out" enterkeyhint="done" />
+    <div class="frow">
+      <div style="flex:1;min-width:0"><label>Lane</label><select id="r-lane"><option value="personal">Personal</option><option value="work">Work</option></select></div>
+      <div style="flex:1;min-width:0"><label>Pattern</label><select id="r-type"><option value="weekly">Weekly</option><option value="interval">Every N days</option></select></div>
+    </div>
+    <div id="r-weekly"><label>Day</label><select id="r-day">${DOW.map(d=>`<option>${d}</option>`).join('')}</select></div>
+    <div id="r-int" style="display:none"><div class="frow">
+      <div style="flex:1;min-width:0"><label>Every · days</label><input id="r-n" type="number" min="2" max="60" value="4" inputmode="numeric" /></div>
+      <div style="flex:2;min-width:0"><label>Starting</label><input id="r-anchor" type="date" value="${todayISO}" /></div>
+    </div></div>
+    <div class="acts"><button class="cancel" data-x="c">Cancel</button><button class="save" data-x="s">Add</button></div>`);
+  const tsel=dlg.querySelector('#r-type');
+  tsel.addEventListener('change',()=>{ const iv=tsel.value==='interval'; dlg.querySelector('#r-weekly').style.display=iv?'none':''; dlg.querySelector('#r-int').style.display=iv?'':'none'; });
+  dlg.querySelector('[data-x=c]').addEventListener('click',closeDialog);
+  dlg.querySelector('[data-x=s]').addEventListener('click',()=>{
+    const label=dlg.querySelector('#r-label').value.trim(); if(!label) return;
+    const lane=dlg.querySelector('#r-lane').value;
+    if(tsel.value==='interval'){
+      const n=Math.max(2,Math.min(60,+dlg.querySelector('#r-n').value||4));
+      const anchor=(dlg.querySelector('#r-anchor').value||todayISO);
+      DB.recur.push({type:'interval', every:n, anchor, lane, label, subs:[]});
+    } else {
+      DB.recur.push({day:dlg.querySelector('#r-day').value, lane, label, subs:[]});
+    }
+    applyRecurringFrom(todayMonday);
+    saveDB(); closeDialog(); renderMore(); flashToast('Recurring added — placed from this week forward');
+  });
+}
+function moveTask(ctx, target, baseKey){
+  const {t}=ctx;
+  const base = baseKey || ctx.wk.key;   // for overdue (past-week) tasks the move targets the CURRENT week, not the week they were left in
+  const pos=ctx.arr.indexOf(t); if(pos<0){ closeDialog(); return; }
+  if(target==='N'){
+    ctx.arr.splice(pos,1);
+    const nwk=ensureWeek(addDays(base,7)); t.defers=(t.defers||0)+1; nwk.future[t.kind].push(t);
+  } else if(/^\d{4}-\d{2}-\d{2}$/.test(target)){
+    ctx.arr.splice(pos,1);
+    const wkKey=isoMonday(new Date(+target.slice(0,4), +target.slice(5,7)-1, +target.slice(8,10)));
+    const wk2=ensureWeek(wkKey);
+    if(wkKey>ctx.wk.key) t.defers=(t.defers||0)+1;
+    wk2.days[daysBetween(wkKey,target)][t.kind].push(t);
+  } else {
+    const di2=(target==='F'||target==='W')?target:Number(target);
+    if(base===ctx.wk.key && di2===ctx.di){ closeDialog(); return; }
+    ctx.arr.splice(pos,1);
+    const bwk=ensureWeek(base);
+    if(base>ctx.wk.key) t.defers=(t.defers||0)+1;
+    colArr(bwk,di2,t.kind).push(t);
+  }
+  saveDB(); closeDialog(); render(); flashToast('Moved · '+t.label.slice(0,40));
+}
+function moveBaseFor(wk){ return (wk.key<todayMonday) ? ((ui.weekKey&&ui.weekKey>=todayMonday)?ui.weekKey:todayMonday) : wk.key; }
+function openMoveSheet(ctx){
+  const {t,wk,di}=ctx;
+  const base=moveBaseFor(wk);
+  const bwk=ensureWeek(base);
+  const fromPast = base!==wk.key;
+  const nx=addDays(base,7); const [ny2,nm2,nd2]=nx.split('-').map(Number);
+  const chips=[];
+  bwk.days.forEach((d,i)=>{ if(fromPast || i!==di) chips.push(`<button type="button" class="dchip" data-mv="${i}">${d.dow} ${d.n}</button>`); });
+  if(fromPast || di!=='W') chips.push(`<button type="button" class="dchip wkdc" data-mv="W">Weekend</button>`);
+  if(fromPast || di!=='F') chips.push(`<button type="button" class="dchip futc" data-mv="F">Future</button>`);
+  chips.push(`<button type="button" class="dchip nxtc" data-mv="N">Next week · w/c ${nd2} ${MON[nm2-1]}</button>`);
+  openDialog(`<h3>Move task</h3><p style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0 8px">${esc(t.label)}${fromPast?` <span class="subdesc">· from w/c ${wcShort(wk.key)} → this week</span>`:''}</p>
+    <div class="chiprow wrap" id="mv-chips">${chips.join('')}</div>
+    <label>Or pick a date</label>
+    <div class="frow"><input id="mv-date" type="date" style="flex:1" /><button type="button" class="save" id="mv-go" style="flex:0 0 auto">Go</button></div>
+    <div class="acts"><button class="cancel" data-x="c">Cancel</button></div>`);
+  dlg.querySelector('[data-x=c]').addEventListener('click',closeDialog);
+  dlg.querySelector('#mv-chips').addEventListener('click',e=>{ const b=e.target.closest('[data-mv]'); if(b) moveTask(ctx,b.dataset.mv,base); });
+  dlg.querySelector('#mv-go').addEventListener('click',()=>{ const v=dlg.querySelector('#mv-date').value; if(/^\d{4}-\d{2}-\d{2}$/.test(v)) moveTask(ctx,v,base); });
+  setTimeout(()=>{ const c=dlg.querySelector('#mv-chips .dchip'); if(c) c.focus(); }, 80);   // land on the primary action, not the date field
 }
 function openBrainDump(){
   openDialog(`<h3>Brain-dump</h3><p>Get it out of your head. No day, no lane — sort it later.</p>
@@ -1454,15 +1767,18 @@ function openPaste(){
 function whenToTarget(when){
   when=(when||'today').toLowerCase().trim();
   if(when==='future') return ['F','F'];
+  if(when==='weekend') return [todayMonday, 'W'];
   if(when==='today') return [todayMonday, todayDayIdx()];
   if(when==='tomorrow'){ const iso=addDays(todayISO,1); return [isoMonday(iso), ((new Date(iso).getDay()+6)%7)]; }
-  if(when==='next week') return [addDays(todayMonday,7), 0];
-  const di=DOW.findIndex(d=>d.toLowerCase()===when.slice(0,3)); if(di>=0) return [todayMonday, di];
+  if(when==='next week') return [addDays(todayMonday,7), 'F'];
+  const di=DOW.findIndex(d=>d.toLowerCase()===when.slice(0,3)); if(di>=0){ return addDays(todayMonday,di)<todayISO ? [addDays(todayMonday,7), di] : [todayMonday, di]; }   // a passed weekday means NEXT week's
   if(/^\d{4}-\d{2}-\d{2}$/.test(when)){ return [isoMonday(when), ((new Date(when).getDay()+6)%7)]; }
   return [todayMonday, todayDayIdx()];
 }
 function importClaude(text){
-  const data=JSON.parse(text); const tasks=data.tasks||[]; let n=0;
+  const data=JSON.parse(text);
+  if(!Array.isArray(data.tasks)) throw new Error('no "tasks" array found — expected { "tasks": [ … ] }');
+  const tasks=data.tasks; let n=0;
   const findProj=v=>{ if(!v)return null; const p=(DB.projects||[]).find(x=>x.id===v||x.name.toLowerCase()===(''+v).toLowerCase()); return p?p.id:null; };
   tasks.forEach(o=>{
     let [wKey,di]=whenToTarget(o.when);
@@ -1484,7 +1800,7 @@ function download(name, content, mime){
   setTimeout(()=>{ a.remove(); URL.revokeObjectURL(u); }, 120);
   flashToast('Downloaded '+name);
 }
-function exportJSON(){ download('planner-backup-'+todayISO+'.json', JSON.stringify({weeks:DB.weeks,recur:DB.recur,inbox:DB.inbox,savedAt:DB.savedAt},null,2), 'application/json'); }
+function exportJSON(){ download('planner-backup-'+todayISO+'.json', JSON.stringify(JSON.parse(exportShape()),null,2), 'application/json'); }
 function exportExcel(){
   const wk=curWeek(); let rows='';
   const xc=s=>esc(s);
@@ -1497,6 +1813,7 @@ function exportExcel(){
       });
     });
   });
+  if(wk.weekend) ['personal','work'].forEach(kind=>{ sortTimed(wk.weekend[kind]).forEach(t=>{ rows+=`<tr><td>Weekend</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map(s=>s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
   ['personal','work'].forEach(kind=>{ sortTimed(wk.future[kind]).forEach(t=>{ rows+=`<tr><td>Future</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map(s=>s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
   const [sy,sm,sd]=ui.weekKey.split('-').map(Number);
   const head=`<table border="1" style="border-collapse:collapse;font-family:Arial;font-size:11pt"><tr><td colspan="6" style="background:#bd5f37;color:#fff;font-size:15pt;font-weight:bold;padding:8px">Weekly Planner — w/c ${sd} ${MON[sm-1]} ${sy}</td></tr><tr style="background:#2c2722;color:#fff;font-weight:bold"><td>Day</td><td>Lane</td><td>Time</td><td>Task</td><td>Sub-tasks</td><td>✓</td></tr>`;
@@ -1555,10 +1872,12 @@ document.addEventListener('pointerdown', e=>{
     dragging=false; row.classList.remove('dragging');
     window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up);
     const tgt=row.closest('.list'); if(!tgt){ render(); return; }
+    const wk=DB.weeks[tgt.dataset.w]; const di=(tgt.dataset.d==='F'||tgt.dataset.d==='W')?tgt.dataset.d:Number(tgt.dataset.d); const kind=tgt.dataset.k;
+    if(!wk || !kind || !tgt.dataset.w){ render(); return; }   // dropped somewhere that isn't a real lane (e.g. the overdue list) — put it back, touch nothing
     const sPos=srcArr.indexOf(srcObj); if(sPos>=0) srcArr.splice(sPos,1);
-    const wk=DB.weeks[tgt.dataset.w]; const di=tgt.dataset.d==='F'?'F':Number(tgt.dataset.d); const kind=tgt.dataset.k;
     // moving lanes/days changes kind to the target lane
     if(srcObj.kind!==kind) srcObj.kind=kind;
+    if(wk && ctx.wk && wk.key>ctx.wk.key) srcObj.defers=(srcObj.defers||0)+1;   // cross-week drag counts as a defer, same as every other move route
     const tgtArr=colArr(wk,di,kind);
     let newIdx=[...tgt.querySelectorAll('.t')].indexOf(row); if(newIdx<0)newIdx=tgtArr.length;
     // account for timed-sort: just push then sort handled on render
@@ -1568,6 +1887,29 @@ document.addEventListener('pointerdown', e=>{
   window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
 });
 
+/* long-press (any device) or right-click (laptop) on a task → move sheet */
+let _lpT=null,_lpPos=null,_lpSuppress=false;
+document.addEventListener('pointerdown', e=>{
+  if(dragging) return;
+  const row=e.target.closest('.t,.hero'); if(!row) return;
+  if(e.target.closest('button,a,input,.grip,.subs')) return;
+  const ctx=findTask(row); if(!ctx) return;
+  _lpPos=[e.clientX,e.clientY];
+  clearTimeout(_lpT);
+  _lpT=setTimeout(()=>{ _lpT=null; _lpSuppress=true; try{ if(navigator.vibrate) navigator.vibrate(10); }catch(err){} openMoveSheet(ctx); },550);
+});
+document.addEventListener('pointermove', e=>{ if(_lpT&&_lpPos&&(Math.abs(e.clientX-_lpPos[0])>8||Math.abs(e.clientY-_lpPos[1])>8)){ clearTimeout(_lpT); _lpT=null; } });
+document.addEventListener('pointerup', ()=>{ if(_lpT){ clearTimeout(_lpT); _lpT=null; } });
+document.addEventListener('pointercancel', ()=>{ if(_lpT){ clearTimeout(_lpT); _lpT=null; } });
+document.addEventListener('scroll', ()=>{ if(_lpT){ clearTimeout(_lpT); _lpT=null; } }, {capture:true,passive:true});
+document.addEventListener('click', e=>{ if(_lpSuppress){ _lpSuppress=false; e.stopPropagation(); e.preventDefault(); } }, true);
+document.addEventListener('contextmenu', e=>{
+  const row=e.target.closest('.t,.hero'); if(!row) return;
+  if(dlg.open) return;
+  const ctx=findTask(row); if(!ctx) return;
+  e.preventDefault(); openMoveSheet(ctx);
+});
+
 // swipe between days (phone week)
 let sx=null, sy0=null;
 document.addEventListener('touchstart', e=>{ if(isLap()||ui.view!=='week')return; const sw=e.target.closest('#swipe'); if(!sw||e.target.closest('.grip'))return; sx=e.touches[0].clientX; sy0=e.touches[0].clientY; }, {passive:true});
@@ -1575,17 +1917,20 @@ document.addEventListener('touchend', e=>{
   if(sx===null||isLap()||ui.view!=='week'){ sx=null; return; }
   const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy0;
   sx=null; if(Math.abs(dx)<46 || Math.abs(dy)>Math.abs(dx)) return;
-  const order=[0,1,2,3,4,5,6,'F']; let i=order.indexOf(ui.dayIdx);
+  const hasLate=(ui.weekKey===todayMonday)&&pastUnfinishedAll().length>0;
+  const order=(hasLate?['L']:[]).concat([0,1,2,3,4,'W',5,6,'F']); let i=order.indexOf(ui.dayIdx);
+  if(i<0) i=hasLate?1:0;
   if(dx<0 && i<order.length-1) i++; else if(dx>0 && i>0) i--; else return;
   ui.dayIdx=order[i];
-  viewTransition(()=>{ document.getElementById('dayview').innerHTML=dayViewHTML(curWeek()); document.querySelectorAll('.dp').forEach(p=>p.classList.toggle('sel', (p.dataset.day==='F'?'F':Number(p.dataset.day))===ui.dayIdx)); });
+  viewTransition(()=>{ document.getElementById('dayview').innerHTML=dayViewHTML(curWeek()); document.querySelectorAll('.dp').forEach(p=>p.classList.toggle('sel', ((p.dataset.day==='F'||p.dataset.day==='W')?p.dataset.day:Number(p.dataset.day))===ui.dayIdx)); syncAddbar(); });
 });
 
 // day strip pick
 document.addEventListener('click', e=>{
   const dp=e.target.closest('.dp'); if(!dp)return;
-  ui.dayIdx = dp.dataset.day==='F'?'F':Number(dp.dataset.day);
+  ui.dayIdx = (dp.dataset.day==='F'||dp.dataset.day==='W'||dp.dataset.day==='L')?dp.dataset.day:Number(dp.dataset.day);
   renderWeek();
+  syncAddbar();
 });
 
 /* ---------- syncing add bar context ---------- */
@@ -1593,7 +1938,7 @@ function syncAddbar(){
   const inp=document.getElementById('newtask');
   if(!inp) return;
   if(ui.view==='today'){ inp.placeholder='Add to today…'; }
-  else if(ui.view==='week'){ const wk=curWeek(); const where= ui.dayIdx==='F'?'Future':(wk.days[ui.dayIdx]?wk.days[ui.dayIdx].dow:''); inp.placeholder='Add to '+where+'…'; }
+  else if(ui.view==='week'||ui.view==='weekplus'){ const wk=curWeek(); const where= ui.dayIdx==='F'?'Future':(ui.dayIdx==='W'?'Weekend':(ui.dayIdx==='L'?'today':(wk.days[ui.dayIdx]?wk.days[ui.dayIdx].dow:''))); inp.placeholder='Add to '+where+'…'; }
 }
 
 /* relayout on breakpoint cross — multiple triggers so the swap is always reliable */
@@ -1612,7 +1957,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v0.6 · prototype';
+const APP_VERSION='v0.8';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -1739,9 +2084,10 @@ function healthRibbonHTML(){
   const rec=healthDay(todayISO);
   if(!rec){ return `<button class="hribbon connect" data-go="more">Connect Fitbit / Google Health to see sleep, steps & calories here →</button>`; }
   const debt=sleepDebt(rec.sleepMins); const toGo=Math.max(0,STEP_GOAL-(rec.steps||0));
-  let exDays=0; for(let i=0;i<7;i++){ const r=healthDay(addDays(todayMonday,i)); if(r&&r.exercised)exDays++; }
+  const smp=DB.health&&DB.health.source==='sample';
+  let exDays=0; for(let i=0;i<7;i++){ const iso=addDays(todayMonday,i); const r=healthDay(iso); if((!smp&&r&&r.exercised)||(DB.gym&&DB.gym[iso]))exDays++; }
   return `<div class="hribbon">
-    <div class="hstat"><span class="hk">Sleep</span><span class="hv">${rec.sleepMins!=null?fmtHM(rec.sleepMins):'—'}</span><span class="hs ${rec.sleepMins==null?'':(debt>0?'deficit':'ok')}">${rec.sleepMins==null?'no data':(debt>0?'−'+fmtHM(debt)+' vs 8h':'on target')}</span></div>
+    <div class="hstat"><span class="hk">Sleep${smp?' · sample':''}</span><span class="hv">${rec.sleepMins!=null?fmtHM(rec.sleepMins):'—'}</span><span class="hs ${rec.sleepMins==null?'':(debt>0?'deficit':'ok')}">${rec.sleepMins==null?'no data':(debt>0?'−'+fmtHM(debt)+' vs 8h':'on target')}</span></div>
     <div class="hstat"><span class="hk">Steps</span><span class="hv">${(rec.steps||0).toLocaleString()}</span><span class="hs">${toGo?toGo.toLocaleString()+' to 10k':'10k done ✓'}</span></div>
     <div class="hstat"><span class="hk">Burned</span><span class="hv">${(rec.caloriesOut||0).toLocaleString()}</span><span class="hs">cal today</span></div>
     <div class="hstat"><span class="hk">Exercise</span><span class="hv">${exDays}</span><span class="hs">day${exDays!==1?'s':''} this week</span></div>
@@ -1755,18 +2101,18 @@ function remindOverdue(t){ return t.remind && !t.done && new Date(t.remind)<=new
 function remindPill(t){ if(!t||!t.remind||t.done) return ''; return `<span class="pill remind ${remindOverdue(t)?'over':''}">⏰ ${fmtRemind(t.remind)}</span>`; }
 function toLocalISO(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function getProject(pid){ return (DB.projects||[]).find(p=>p.id===pid); }
-function allProjectTasks(pid){ const out=[]; Object.keys(DB.weeks).sort().forEach(wkk=>{ const wk=DB.weeks[wkk]; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di,kind:k,where:`${d.dow} ${d.n} ${d.month}`}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'F',kind:k,where:'Future'}); })); }); return out; }
+function allProjectTasks(pid){ const out=[]; Object.keys(DB.weeks).sort().forEach(wkk=>{ const wk=DB.weeks[wkk]; if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di,kind:k,where:`${d.dow} ${d.n} ${d.month}`}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'F',kind:k,where:'Future'}); })); if(wk.weekend){ ['personal','work'].forEach(k=>wk.weekend[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'W',kind:k,where:'Weekend'}); })); } }); return out; }
 function projectProgress(pid){ const ts=allProjectTasks(pid); const done=ts.filter(x=>x.t.done).length; return {done,total:ts.length,pct:ts.length?Math.round(done/ts.length*100):0,tasks:ts}; }
 function nextProjectStep(pid){ return allProjectTasks(pid).filter(x=>!x.t.done)[0]||null; }
 function dueCountdown(due){ const days=Math.round((new Date(due)-new Date())/86400000); if(days<0)return 'overdue'; if(days===0)return 'due today'; if(days<14)return days+' days left'; if(days<70)return Math.round(days/7)+' weeks left'; return Math.round(days/30)+' months left'; }
 function malagaLine(){ const p=(DB.projects||[]).find(x=>x.id==='malaga'); if(!p)return ''; const pr=projectProgress('malaga'); const nx=nextProjectStep('malaga'); return `${pr.pct}% there${nx?` · next is “${esc(nx.t.label)}”`:''}`; }
-function allReminders(){ const out=[]; Object.values(DB.weeks).forEach(wk=>{ if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di,kind:k}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di:'F',kind:k}); })); }); out.sort((a,b)=>new Date(a.t.remind)-new Date(b.t.remind)); return out; }
+function allReminders(){ const out=[]; Object.values(DB.weeks).forEach(wk=>{ if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di,kind:k}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di:'F',kind:k}); })); if(wk.weekend){ ['personal','work'].forEach(k=>wk.weekend[k].forEach(t=>{ if(t.remind&&!t.done)out.push({t,wk,di:'W',kind:k}); })); } }); out.sort((a,b)=>new Date(a.t.remind)-new Date(b.t.remind)); return out; }
 function dueCount(){ const now=new Date(); return allReminders().filter(x=>new Date(x.t.remind)<=now).length; }
-function countAllTasks(){ let n=0; Object.values(DB.weeks).forEach(wk=>{ if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach(d=>{n+=d.personal.length+d.work.length;}); n+=wk.future.personal.length+wk.future.work.length; }); return n; }
+function countAllTasks(){ let n=0; Object.values(DB.weeks).forEach(wk=>{ if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach(d=>{n+=d.personal.length+d.work.length;}); n+=wk.future.personal.length+wk.future.work.length; if(wk.weekend){ n+=wk.weekend.personal.length+wk.weekend.work.length; } }); return n; }
 
 function malagaDriverHTML(){ const p=(DB.projects||[]).find(x=>x.pinned); if(!p)return ''; const pr=projectProgress(p.id); const nx=nextProjectStep(p.id); return `<button class="driver" data-act="openproject" data-pid="${p.id}" style="--pc:${p.color}"><div class="drv-l"><div class="drv-name">★ ${esc(p.name)}</div><div class="drv-next">${nx?'Next: '+esc(nx.t.label):'All steps done 🎉'}</div></div><div class="drv-r"><div class="drv-pct">${pr.pct}%</div><div class="pf-bar small"><div class="pf-fill" style="width:${pr.pct}%"></div></div></div></button>`; }
 function dueBanner(){ const n=dueCount(); if(!n) return ''; return `<button class="duebanner" data-go="reminders"><span class="db-l">🔔 ${n} reminder${n!==1?'s':''} due now</span><span class="db-r">Review →</span></button>`; }
-function buildWeekSummary(){ const wk=curWeek(); const [sy,sm,sd]=ui.weekKey.split('-').map(Number); let s=`My week (w/c ${sd} ${MON[sm-1]} ${sy}):\n`; wk.days.forEach(d=>{ const items=[...d.personal,...d.work].filter(t=>!t.done).map(t=>t.label); if(items.length) s+=`\u2022 ${d.dow}: ${items.join('; ')}\n`; }); const stuck=[]; wk.days.forEach(d=>[...d.personal,...d.work].forEach(t=>{ if(t.defers>=3)stuck.push(t.label); })); if(stuck.length) s+=`Keeps slipping (3+ wks): ${stuck.join('; ')}\n`; const ml=malagaLine(); if(ml) s+=`Málaga: ${ml.replace(/<[^>]+>/g,'')}\n`; s+=`\nPlease summarise my week and help me re-plan it, protecting time — I've a new baby and time is rare.`; return s; }
+function buildWeekSummary(){ const wk=curWeek(); const [sy,sm,sd]=ui.weekKey.split('-').map(Number); let s=`My week (w/c ${sd} ${MON[sm-1]} ${sy}):\n`; wk.days.forEach(d=>{ const items=[...d.personal,...d.work].filter(t=>!t.done).map(t=>t.label); if(items.length) s+=`\u2022 ${d.dow}: ${items.join('; ')}\n`; }); if(wk.weekend){ const wq=[...wk.weekend.personal,...wk.weekend.work].filter(t=>!t.done).map(t=>t.label); if(wq.length) s+=`\u2022 Weekend (floating): ${wq.join('; ')}\n`; } const stuck=[]; wk.days.forEach(d=>[...d.personal,...d.work].forEach(t=>{ if(t.defers>=3)stuck.push(t.label); })); ['future','weekend'].forEach(z=>{ if(wk[z]) [...wk[z].personal,...wk[z].work].forEach(t=>{ if(!t.done && t.defers>=3)stuck.push(t.label); }); }); if(stuck.length) s+=`Keeps slipping (3+ wks): ${stuck.join('; ')}\n`; const ml=malagaLine(); if(ml) s+=`Málaga: ${ml.replace(/<[^>]+>/g,'')}\n`; s+=`\nPlease summarise my week and help me re-plan it, protecting time — I've a new baby and time is rare.`; return s; }
 function talkWeek(){ const txt=buildWeekSummary(); try{ if(navigator.share){ navigator.share({title:'My week',text:txt}).catch(()=>{}); return; } }catch(e){} try{ navigator.clipboard.writeText(txt).then(()=>flashToast('Week summary copied — paste into Claude'),()=>flashToast('Copy not available')); }catch(e){ flashToast('Copy not available here'); } }
 function trustPanelHTML(){ return `<div class="trust"><div class="trust-h">✶ Built, stress-tested & maintained by Claude</div><div class="trust-v">${APP_VERSION} · ${countAllTasks()} tasks held safely · last self-check ${todayISO}</div><ul class="trust-rules"><li>Never drops a task — every change is additive; nothing overwritten</li><li>One-tap JSON + Excel backup (your Friday ritual)</li><li>Writes verified before they're trusted; fails loudly, never silently</li><li>Won't touch your real planner file until you approve the wiring</li></ul><div class="trust-foot">Claude re-checks the planner's health at every weekly review and flags anything off.</div></div>`; }
 
