@@ -1064,7 +1064,7 @@ const OD = {
 };
 (function(){ let r=location.origin+location.pathname; r=r.replace(/index\.html?$/i,''); OD.redirect=r; })();
 const DEPLOY_OK = /github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
-const odState = { connected:false, account:'', live:false, syncing:false, lastSync:0, error:null, backedUp:'' };
+const odState = { connected:false, account:'', live:false, syncing:false, pulling:false, lastSync:0, lastPull:0, etag:null, error:null, backedUp:'' };
 const hhmm = ts=>{ const d=new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); };
 
 /* ---- PKCE helpers (Web Crypto) ---- */
@@ -1123,6 +1123,38 @@ async function getToken(cfg, stateObj){
 }
 async function gText(path){ const t=await getToken(OD, odState); const r=await fetch(OD.graph+path,{headers:{Authorization:'Bearer '+t}}); if(r.status===404) return null; if(!r.ok) throw new Error('read '+r.status); return r.text(); }
 async function gPut(path, text){ const t=await getToken(OD, odState); const r=await fetch(OD.graph+path,{ method:'PUT', headers:{Authorization:'Bearer '+t,'Content-Type':'application/json'}, body:text }); if(!r.ok) throw new Error('write '+r.status); return r.json(); }
+// merge cloud + local health rather than clobbering: a cloud copy that's newer on TASKS can still
+// carry staler HEALTH — union the day maps, newer health.updatedAt side wins conflicting days
+function mergeHealth(remoteH){
+  if(!remoteH) return;
+  const localFit = DB.health && DB.health.source==='fitbit';
+  const remoteFit = remoteH.source==='fitbit';
+  if(localFit && !remoteFit) return;                                   // never let sample data erase real data
+  if(!localFit){ DB.health=remoteH; return; }
+  const lU=+DB.health.updatedAt||0, rU=+remoteH.updatedAt||0;
+  const base = lU>=rU ? (remoteH.days||{}) : (DB.health.days||{});
+  const top  = lU>=rU ? (DB.health.days||{}) : (remoteH.days||{});
+  DB.health = { source:'fitbit', updatedAt:Math.max(lU,rU), days:Object.assign({}, base, top) };
+}
+// conditional PUT: only succeeds if the cloud file still has the ETag we last saw — a 412 means
+// another device wrote first, and we must NEVER blindly overwrite it (the stale-overwrite class)
+async function gPutIfMatch(path, text, etag){
+  const t=await getToken(OD, odState);
+  const headers={Authorization:'Bearer '+t,'Content-Type':'application/json'};
+  if(etag) headers['If-Match']=etag;
+  const r=await fetch(OD.graph+path,{ method:'PUT', headers, body:text });
+  if(r.status===412) return { conflict:true };
+  if(!r.ok) throw new Error('write '+r.status);
+  return r.json();
+}
+// item metadata only — lets the pull check cost almost nothing when nothing changed
+async function odItemMeta(){
+  const t=await getToken(OD, odState);
+  const r=await fetch(OD.graph+APPROOT+'/'+OD.file,{headers:{Authorization:'Bearer '+t}});
+  if(r.status===404) return null;
+  if(!r.ok) throw new Error('meta '+r.status);
+  return r.json();
+}
 const APPROOT='/me/drive/special/approot:';
 
 /* ---- counts (works for BOTH old v2 and new schema) — used to assert zero-loss ---- */
@@ -1142,23 +1174,84 @@ async function odReconcile(){
   let remote; try{ remote=JSON.parse(text); }catch(e){ return { kind:'corrupt' }; }
   return { kind:'exists', remote, remoteText:text, remoteCount:countTasksIn(remote), localCount:countTasksIn(DB) };
 }
-function odPersistMeta(){ localStorage.setItem(OD.metaKey, JSON.stringify({ live:odState.live, account:odState.account })); }
+function odPersistMeta(){ localStorage.setItem(OD.metaKey, JSON.stringify({ live:odState.live, account:odState.account, etag:odState.etag })); }
 
-/* ---- write: backup → put → verify ---- */
+/* ---- write: backup → conditional put → verify ---- */
+let _syncRetryT=null, _syncRetryN=0;
 async function odPush(){
   if(!odState.connected || !odState.live || !DEPLOY_OK) return;
+  if(odState.syncing) return;
   odState.syncing=true; updateSyncBadge();
   try{
     const payload=exportShape();
     if(odState.backedUp!==todayISO){ const cur=await gText(APPROOT+'/'+OD.file+':/content'); if(cur!=null){ await gPut(APPROOT+'/backups/'+OD.file.replace('.json','')+'-'+todayISO+'.json:/content', cur); } odState.backedUp=todayISO; }
-    const meta=await gPut(APPROOT+'/'+OD.file+':/content', payload);
+    let meta=await gPutIfMatch(APPROOT+'/'+OD.file+':/content', payload, odState.etag);
+    if(meta && meta.conflict){
+      // another device wrote since we last looked — decide by timestamp, never blind-overwrite
+      const text=await gText(APPROOT+'/'+OD.file+':/content');
+      let remote=null; try{ remote=text?JSON.parse(text):null; }catch(e){}
+      if(!remote || (+remote.savedAt||0) <= (+DB.savedAt||0)){
+        meta=await gPutIfMatch(APPROOT+'/'+OD.file+':/content', payload, null);   // our copy is the newer one — take over
+      } else {
+        odState.syncing=false; odState.error='Another device saved newer changes — review needed.'; _pushPending=false; updateSyncBadge();
+        openReconcile();   // human sees both counts and chooses; the smaller-cloud discard guard applies
+        return;
+      }
+    }
     const sent=new Blob([payload]).size;
     if(meta && typeof meta.size==='number' && Math.abs(meta.size-sent)>2) throw new Error('write not verified ('+meta.size+'≠'+sent+'B)');
-    odState.lastSync=Date.now(); odState.error=null;
-  }catch(e){ odState.error='Cloud save failed — kept safe locally. '+e.message; }
+    if(meta && (meta.eTag||meta['@odata.etag'])){ odState.etag=meta.eTag||meta['@odata.etag']; odPersistMeta(); }
+    odState.lastSync=Date.now(); odState.error=null; _syncRetryN=0; _pushPending=false;
+  }catch(e){
+    odState.error='Cloud save failed — kept safe locally. '+e.message;
+    if(_syncRetryN<3){ _syncRetryN++; clearTimeout(_syncRetryT); _syncRetryT=setTimeout(()=>{ if(odState.connected&&odState.live) odPush(); }, 20000*_syncRetryN); }
+  }
   odState.syncing=false; updateSyncBadge();
 }
-let _syncT; function scheduleSync(){ if(!odState.connected||!odState.live) return; clearTimeout(_syncT); _syncT=setTimeout(odPush, 1500); }
+/* ---- guarded auto-pull: open / focus / resume / online. Adopt silently ONLY when the cloud is
+   strictly newer AND holds at least as many tasks; anything lossy goes through the reconcile
+   dialog with its explicit discard warning. Costs one metadata GET when nothing changed. ---- */
+async function odPullCheck(reason){
+  if(!odState.connected || !odState.live || !DEPLOY_OK) return;
+  if(odState.syncing || odState.pulling || dragging) return;
+  if(_pushPending && _syncRetryN<3){ flushSync(); return; }                     // unsynced local change: push it first — If-Match resolves any true conflict safely.
+                                                                                // After 3 straight push failures, stop starving pulls — If-Match still guards the data.
+  if(typeof dlg!=='undefined' && dlg && dlg.open) return;                       // never swap data under an open dialog
+  if(reason!=='init' && Date.now()-odState.lastPull<12000) return;              // throttle rapid focus flips
+  odState.pulling=true;
+  try{
+    const meta=await odItemMeta();
+    odState.lastPull=Date.now();
+    if(!meta){ odState.pulling=false; return; }                                 // no cloud file yet
+    if(odState.etag && meta.eTag===odState.etag){ odState.pulling=false; updateSyncBadge(); return; }  // already current — done for one cheap call
+    const text=await gText(APPROOT+'/'+OD.file+':/content');
+    if(text==null){ odState.pulling=false; return; }
+    let remote; try{ remote=JSON.parse(text); }catch(e){ odState.pulling=false; return; }   // corrupt cloud: manual reconcile only
+    const rSaved=+remote.savedAt||0, lSaved=+DB.savedAt||0;
+    if(rSaved<=lSaved){ odState.etag=meta.eTag||odState.etag; odPersistMeta(); odState.pulling=false; updateSyncBadge(); return; }  // we're newest — note etag so pushes can If-Match
+    const before=countTasksIn(remote).tasks;
+    migrate(remote);
+    const after=countTasksIn(remote).tasks;
+    const localN=countTasksIn(DB).tasks;
+    if(after<before || after<localN){ odState.pulling=false; openReconcile(); return; }     // would shrink — human decides
+    if(dragging || (dlg&&dlg.open) || (_pushPending&&_syncRetryN<3)){ odState.pulling=false; return; }   // state changed while we were fetching — abort, try again later
+    if(_pushPending){ odState.pulling=false; openReconcile(); return; }   // pushes keep failing AND the cloud moved on: genuine two-sided conflict — human decides, nothing silent
+    DB.weeks=remote.weeks; DB.recur=remote.recur||DB.recur; if(remote.projects)DB.projects=remote.projects; if(remote.inbox)DB.inbox=remote.inbox; if(remote.shopping)DB.shopping=remote.shopping; mergeHealth(remote.health); if(remote.gym)DB.gym=remote.gym;
+    DB.savedAt=rSaved;
+    reseedUID(DB);
+    odState.etag=meta.eTag||null; odPersistMeta();
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({},DB,{_uid:UID}))); }catch(e){}   // persist adoption WITHOUT scheduling an echo push
+    ui.weekKey=null;                                                             // re-anchor to the current week
+    render();
+    flashToast('Updated from cloud ✓');
+  }catch(e){ /* offline or auth hiccup — stay quiet, badge reflects connection state */ }
+  odState.pulling=false; updateSyncBadge();
+}
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ odPullCheck('visible'); if(fitState.connected) refreshHealth(); } });
+window.addEventListener('focus', function(){ odPullCheck('focus'); });
+window.addEventListener('online', function(){ flushSync(); odPullCheck('online'); });
+let _syncT, _pushPending=false;
+function scheduleSync(){ if(!odState.connected||!odState.live) return; _pushPending=true; clearTimeout(_syncT); _syncT=setTimeout(odPush, 1500); }
 function flushSync(){ if(!odState.connected||!odState.live||odState.syncing) return; clearTimeout(_syncT); odPush(); }
 document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') flushSync(); });
 window.addEventListener('pagehide', flushSync);
@@ -1200,7 +1293,7 @@ async function openReconcile(){
     migrate(adopted); const after=countTasksIn(adopted).tasks;
     if(after<before){ flashToast('Import would drop tasks — aborted, nothing changed'); closeDialog(); return; }  // migration must never shrink the adopted copy
     const doAdopt=()=>{
-      DB.weeks=adopted.weeks; DB.recur=adopted.recur||DB.recur; if(adopted.projects)DB.projects=adopted.projects; if(adopted.inbox)DB.inbox=adopted.inbox; if(adopted.shopping)DB.shopping=adopted.shopping; if(adopted.health)DB.health=adopted.health; if(adopted.gym)DB.gym=adopted.gym;
+      DB.weeks=adopted.weeks; DB.recur=adopted.recur||DB.recur; if(adopted.projects)DB.projects=adopted.projects; if(adopted.inbox)DB.inbox=adopted.inbox; if(adopted.shopping)DB.shopping=adopted.shopping; mergeHealth(adopted.health); if(adopted.gym)DB.gym=adopted.gym;
       reseedUID(DB);   // adopted copy may carry higher ids than this device's counter — never reissue them
       saveDB(); render(); flashToast(`Imported ${after} tasks from cloud ✓`); if(!odState.live) setTimeout(function(){ offerMakeLive(after); }, 500);
     };
@@ -1292,13 +1385,20 @@ function updateSyncBadge(){ const el=document.querySelector('.synced'); if(el){ 
 
 async function initOneDrive(){
   const tok=JSON.parse(localStorage.getItem(OD.tokKey)||'null'); if(tok){ odState.connected=true; odState.account=tok.account||''; }
-  const meta=JSON.parse(localStorage.getItem(OD.metaKey)||'null'); if(meta){ odState.live=!!meta.live; }
+  const meta=JSON.parse(localStorage.getItem(OD.metaKey)||'null'); if(meta){ odState.live=!!meta.live; odState.etag=meta.etag||null; }
   const ctok=JSON.parse(localStorage.getItem(CAL.tokKey)||'null'); if(ctok){ calState.connected=true; calState.account=ctok.account||''; }
-  const back=await handleRedirect();
+  const fitBack=fitHandleRedirect();                                 // hash only — never eats a Microsoft ?code=
+  fitState.connected=!!fitToken();
+  const back=await handleRedirect();                                 // Microsoft redirect ALWAYS gets processed too
   updateSyncBadge();
-  if(back==='od'){ ui.view='more'; render(); openReconcile(); }
-  else if(back==='cal'){ ui.view='week'; render(); refreshCalendar().then(()=>render()); }
-  else if(calState.connected){ refreshCalendar().then(()=>render()); }
+  if(back==='od'){ ui.view='more'; render(); openReconcile(); if(fitBack) refreshHealth(true); }
+  else if(back==='cal'){ ui.view='week'; render(); refreshCalendar().then(()=>render()); if(fitBack) refreshHealth(true); }
+  else if(fitBack){ ui.view='more'; render(); flashToast('Fitbit connected ✓ — gathering your data'); refreshHealth(true); }
+  else {
+    if(calState.connected){ refreshCalendar().then(()=>render()); }
+    if(odState.connected && odState.live){ odPullCheck('init'); }   // every ordinary open now checks the cloud first
+    if(fitState.connected){ refreshHealth(); }                      // top up today's health numbers on open
+  }
 }
 
 function renderConnectionsInner(){
@@ -1324,7 +1424,7 @@ function renderConnectionsInner(){
     </div>`;
   }
   const stub=(t,d)=>`<div class="conn"><div class="conn-h"><div><div class="conn-t">${t}</div><div class="conn-d">${d}</div></div><span class="conn-badge">Next</span></div></div>`;
-  return od + calCardInner() + claudeCardInner() + stub('Fitbit → Google Health','Behind one adapter · stays off the critical path');
+  return od + calCardInner() + fitCardInner() + claudeCardInner();
 }
 
 /* ============================================================
@@ -1420,6 +1520,14 @@ document.addEventListener('click', e=>{
   else if(a==='backupnow') odBackupNow();
   else if(a==='reconcile') openReconcile();
   else if(a==='retry'){ odState.error=null; updateSyncBadge(); odPush(); }
+});
+// Fitbit actions (delegated)
+document.addEventListener('click', e=>{
+  const b=e.target.closest('[data-fit]'); if(!b) return;
+  const a=b.dataset.fit;
+  if(a==='connect') fitConnect();
+  else if(a==='disconnect') fitDisconnect();
+  else if(a==='refresh'){ refreshHealth(true).then(()=>{ if(ui.view==='more')renderMore(); else render(); flashToast(fitState.error?fitState.error:'Health data refreshed ✓'); }); }
 });
 // Outlook calendar actions (delegated)
 document.addEventListener('click', e=>{
@@ -1874,6 +1982,8 @@ document.addEventListener('pointerdown', e=>{
     const tgt=row.closest('.list'); if(!tgt){ render(); return; }
     const wk=DB.weeks[tgt.dataset.w]; const di=(tgt.dataset.d==='F'||tgt.dataset.d==='W')?tgt.dataset.d:Number(tgt.dataset.d); const kind=tgt.dataset.k;
     if(!wk || !kind || !tgt.dataset.w){ render(); return; }   // dropped somewhere that isn't a real lane (e.g. the overdue list) — put it back, touch nothing
+    // if a cloud adoption swapped the data out mid-drag, our captured task object is stale — inserting it would resurrect a duplicate
+    const still=findTask(row); if(!still || still.t!==srcObj){ render(); return; }
     const sPos=srcArr.indexOf(srcObj); if(sPos>=0) srcArr.splice(sPos,1);
     // moving lanes/days changes kind to the target lane
     if(srcObj.kind!==kind) srcObj.kind=kind;
@@ -1957,7 +2067,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v0.8';
+const APP_VERSION='v1.0';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -2058,13 +2168,40 @@ async function claudeProposeSteps(pid){
   dlg.querySelector('[data-x=no]').addEventListener('click',closeDialog);
   dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{ const wk=ensureWeek(todayMonday); steps.forEach(s=>{ const kind=s.kind==='work'?'work':'personal'; wk.future[kind].push(T(s.label,kind,{projectId:pid})); }); saveDB(); closeDialog(); renderProjectDetail(pid); flashToast('Steps added to the trail'); });
 }
+function fitCardInner(){
+  const t=fitToken();
+  if(!fitState.connected||!t){
+    return `<div class="conn">
+      <div class="conn-h"><div><div class="conn-t">Fitbit · sleep, steps & calories</div><div class="conn-d">Read-only · one authorise · token lasts until the API retires (Sept)</div></div><span class="conn-badge">${fitState.error?'Expired':'Not connected'}</span></div>
+      <button class="conn-btn" data-fit="connect">Connect Fitbit</button>
+      ${fitState.error?`<div class="conn-warn">${esc(fitState.error)}</div>`:''}
+      ${!DEPLOY_OK?`<div class="conn-d" style="margin-top:8px">Runs on the live site (not in this preview).</div>`:''}
+      <div class="conn-d" style="margin-top:8px">Google Health takes over after Fitbit's API retires — groundwork already in this build.</div>
+    </div>`;
+  }
+  const days=(DB.health&&DB.health.source==='fitbit')?Object.keys(DB.health.days||{}).length:0;
+  const upd=(DB.health&&DB.health.source==='fitbit'&&DB.health.updatedAt)?(' · updated '+hhmm(DB.health.updatedAt)):'';
+  return `<div class="conn">
+    <div class="conn-h"><div><div class="conn-t">Fitbit <span class="conn-live" style="color:var(--good);background:var(--good-wash);border-color:var(--good)">● live</span></div><div class="conn-d">${days} day${days!==1?'s':''} of sleep/steps/calories${upd}</div></div><span class="conn-badge">read-only</span></div>
+    <div class="conn-row2"><button class="conn-btn ghost2" data-fit="refresh">Refresh now</button><button class="conn-btn ghost2" data-fit="disconnect">Disconnect</button></div>
+    ${fitState.error?`<div class="conn-warn">${esc(fitState.error)} <button class="linkbtn" data-fit="connect">Reconnect</button></div>`:''}
+  </div>`;
+}
 function claudeCardInner(){
   const be=claudeBackend();
   return `<div class="conn"><div class="conn-h"><div><div class="conn-t">Claude · intelligence</div><div class="conn-d">Weekly read · shrink stuck tasks · sort brain-dumps · plan project steps · proposals only, you approve every change</div></div><span class="conn-badge" style="color:${be?'var(--good)':'var(--gold)'}">${be==='lab'?'Active · here':be==='worker'?'Active · worker':'Needs worker'}</span></div>
   ${be?'' :'<div class="conn-d" style="margin-top:8px">On the live site this talks to Claude through a tiny Cloudflare worker (same pattern as the Fitbit proxy) that holds your API key — one file, ~20 lines. In this design lab it works out of the box.</div>'}</div>`;
 }
 /* ----- HEALTH: Fitbit / Google Health behind ONE adapter; gap-tolerant ----- */
-const SLEEP_TARGET=480, STEP_GOAL=10000, HEALTH_SOURCE='sample'; // swap to 'fitbit' | 'google' at deploy
+const SLEEP_TARGET=480, STEP_GOAL=10000;
+/* ---- FITBIT (direct, client-side): Implicit Grant, no secret, no relay worker. Token lifetime
+   requested at 1 year — outlives the Web API's September 2026 retirement, so no refresh logic.
+   Read-only scopes. When the API retires this card simply reports expired; Google Health follows. */
+const FIT={ clientId:'23PYHQ', authorize:'https://www.fitbit.com/oauth2/authorize', api:'https://api.fitbit.com', scopes:'activity sleep', tokKey:'wp:fit:tok', stateKey:'wp:fit:state' };
+const fitState={ connected:false, error:null, refreshing:false };
+/* Google Health API successor — filled in once the OAuth Web client exists in the
+   weekly-planner-health Cloud project (console checklist with Tom). Wired next build. */
+const GH={ clientId:'', authorize:'https://accounts.google.com/o/oauth2/v2/auth', token:'https://oauth2.googleapis.com/token' };
 function fmtHM(m){ m=Math.round(m); const h=Math.floor(m/60), mm=m%60; return h? (mm?`${h}h ${mm}m`:`${h}h`) : `${mm}m`; }
 function sampleHealth(){ const d={}; const set=(off,sleep,steps,cal,act,ex)=>{ d[addDays(todayMonday,off)]={sleepMins:sleep,steps,caloriesOut:cal,activeMins:act,exercised:ex}; };
   set(0,447,8203,2610,42,true); set(1,402,5563,2711,18,false); set(2,null,6120,2540,25,false); /* Wed: tracker died overnight — no sleep logged */ set(3,408,4980,2480,55,true);
@@ -2074,11 +2211,66 @@ function sleepDebt(mins){ return mins==null? null : Math.max(0, SLEEP_TARGET-min
 // weekly debt sums ONLY tracked nights, so a dead Fitbit night never fabricates 8h of debt
 function weekSleepDebt(monIso){ let total=0, tracked=0; for(let i=0;i<7;i++){ const r=healthDay(addDays(monIso,i)); if(r && r.sleepMins!=null){ tracked++; total+=Math.max(0, SLEEP_TARGET-r.sleepMins); } } return {total,tracked}; }
 // real sources, wired at deploy. browsers can't call Fitbit directly -> go via the Cloudflare worker. never throws into the app.
-async function refreshHealth(){ try{
-    if(HEALTH_SOURCE==='fitbit'){ /* GET https://fitbit-proxy.tom-f71.workers.dev/?from=..&to=..  (worker holds OAuth; client 23PYHQ; scopes sleep+activity) -> map each day to {sleepMins,steps,caloriesOut,activeMins,exercised} into DB.health.days */ }
-    else if(HEALTH_SOURCE==='google'){ /* Google Health Connect / Fitness REST (project weekly-planner-health) -> same shape */ }
-    // absent days stay absent; a dead tracker is simply 'no data', never an error
-  }catch(e){ /* offline / tracker dead: keep last-known, surface nothing scary */ } }
+function fitToken(){ const t=JSON.parse(localStorage.getItem(FIT.tokKey)||'null'); if(!t) return null; if(Date.now()>(+t.exp||0)-60000){ return null; } return t; }
+function fitConnect(){
+  const st=randStr(16); localStorage.setItem(FIT.stateKey, st);
+  location.assign(FIT.authorize+'?response_type=token&client_id='+FIT.clientId+'&redirect_uri='+encodeURIComponent(OD.redirect)+'&scope='+encodeURIComponent(FIT.scopes)+'&expires_in=31536000&state='+encodeURIComponent(st));
+}
+function fitHandleRedirect(){
+  if(!location.hash || location.hash.indexOf('access_token=')<0) return false;
+  const p=new URLSearchParams(location.hash.slice(1));
+  const st=localStorage.getItem(FIT.stateKey);
+  if(!p.get('access_token')) return false;
+  if(st && p.get('state') && p.get('state')!==st) return false;          // CSRF guard
+  const tok={ access:p.get('access_token'), exp:Date.now()+((+p.get('expires_in')||31536000)*1000), user:p.get('user_id')||'' };
+  try{ localStorage.setItem(FIT.tokKey, JSON.stringify(tok)); localStorage.removeItem(FIT.stateKey); }catch(e){ return false; }
+  fitState.connected=true;
+  try{ history.replaceState({},'',location.pathname+location.search); }catch(e){}   // scrub ONLY the hash — a Microsoft ?code= in the query must survive for its own handler
+  return true;
+}
+function fitDisconnect(){ localStorage.removeItem(FIT.tokKey); fitState.connected=false; fitState.error=null; if(ui.view==='more')renderMore(); flashToast('Fitbit disconnected — data already gathered stays'); }
+async function fitGet(path){
+  const t=fitToken(); if(!t) throw new Error('not connected');
+  const r=await fetch(FIT.api+path,{headers:{Authorization:'Bearer '+t.access}});
+  if(r.status===401){ fitState.error='Fitbit session expired — reconnect'; fitState.connected=false; throw new Error('401'); }
+  if(!r.ok) throw new Error('fitbit '+r.status);
+  return r.json();
+}
+async function fitFetchDay(iso){
+  const [sleep, act]=await Promise.all([
+    fitGet('/1.2/user/-/sleep/date/'+iso+'.json').catch(()=>null),
+    fitGet('/1/user/-/activities/date/'+iso+'.json').catch(()=>null),
+  ]);
+  if(!sleep && !act) return null;
+  const sleepMins=(sleep&&sleep.summary&&Array.isArray(sleep.sleep)&&sleep.sleep.length)?sleep.summary.totalMinutesAsleep:null;   // 0 records = tracker not worn, not "0h sleep"
+  const a=(act&&act.summary)||null;
+  const activeMins=a?((a.fairlyActiveMinutes||0)+(a.veryActiveMinutes||0)):null;
+  const exercised=!!((act&&Array.isArray(act.activities)&&act.activities.length>0)||(activeMins!=null&&activeMins>=30));
+  return { sleepMins, steps:a&&a.steps!=null?a.steps:null, caloriesOut:a&&a.caloriesOut!=null?a.caloriesOut:null, activeMins, exercised };
+}
+let _fitLast=0;
+async function refreshHealth(force){
+  if(!fitToken()) return;
+  if(fitState.refreshing) return;
+  if(!force && Date.now()-_fitLast<30*60*1000) return;                    // at most twice an hour
+  fitState.refreshing=true;
+  try{
+    if(!DB.health || DB.health.source!=='fitbit'){ DB.health={ source:'fitbit', updatedAt:Date.now(), days:{} }; }
+    const want=[];
+    for(let i=0;i<7;i++){ const iso=addDays(todayISO,-i); const d=DB.health.days[iso]; if(i<2 || !d || (d.sleepMins==null&&d.steps==null)) want.push(iso); }  // re-check today+yesterday always, and any day whose fetch previously came back empty — a transient API failure never permanently blanks a day
+    let changed=false, bad=false;
+    for(const iso of want){
+      const d=await fitFetchDay(iso);
+      if(fitState.error){ bad=true; break; }                               // token rejected mid-run — stop hammering the API, keep the error visible
+      if(d){ DB.health.days[iso]=d; changed=true; }
+    }
+    DB.health.updatedAt=Date.now(); _fitLast=Date.now();
+    if(!bad) fitState.error=null;                                          // only a clean run clears an old error
+    if(changed) saveDB();                                                  // health data syncs to the phone through OneDrive — no phone-side Fitbit login needed
+    render();
+  }catch(e){ /* offline or expired — ribbon keeps last-known, never alarms */ }
+  fitState.refreshing=false;
+}
 function healthRibbonHTML(){
   if(!DB.health) return '';
   const rec=healthDay(todayISO);
