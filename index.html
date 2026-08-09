@@ -98,7 +98,7 @@
   .t .lab{ flex:1; min-width:0; font-size:15.5px; font-weight:560; line-height:1.3; letter-spacing:-.005em; word-break:break-word; }
   .t .lab .subdesc{ display:block; font-size:11.5px; color:var(--muted); font-weight:540; margin-top:3px; }
   .t.done{ opacity:.62; } .t.done .lab{ text-decoration:line-through; text-decoration-color:var(--faint); color:var(--muted); }
-  .t.dragging{ box-shadow:var(--shadow-3); transform:scale(1.015); border-color:var(--p-line); opacity:.97; z-index:30; cursor:grabbing; }
+  .t.dragging{ box-shadow:var(--shadow-3); transform:scale(1.015); border-color:var(--p-line); opacity:.97; z-index:30; cursor:grabbing; pointer-events:none; }
   .pill{ flex:0 0 auto; font-size:11px; font-weight:680; border-radius:8px; padding:4px 8px; white-space:nowrap; }
   .pill.time{ color:var(--w); background:var(--w-wash); border:1px solid var(--w-line); } .t.kwork .pill.time{ }
   .pill.subs{ color:var(--muted); background:var(--paper-2); border:1px solid var(--hair); display:inline-flex; gap:5px; align-items:center; }
@@ -112,7 +112,11 @@
   /* subtasks */
   .subs{ margin:1px 0 2px 16px; border-left:2px solid var(--hair-2); padding:4px 0 4px 12px; display:flex; flex-direction:column; gap:6px; }
   .sub{ display:flex; align-items:center; gap:10px; background:var(--paper-2); border:1px solid var(--hair-2); border-radius:11px; padding:9px 11px; }
-  .sub .lab{ flex:1; font-size:13.5px; font-weight:540; color:var(--ink-2); }
+  /* min-width:0 — without it a sub-task label cannot shrink and runs out of the card.
+     Measured at 860px: up to 52px of spill with the delete button outside the card in
+     16 of 24 rows. Present in v1.1 too; the narrower six-column row made it visible
+     up to 1152px instead of 1000px. */
+  .sub .lab{ flex:1; min-width:0; overflow-wrap:anywhere; font-size:13.5px; font-weight:540; color:var(--ink-2); }
   .sub.done .lab{ text-decoration:line-through; color:var(--faint); }
   .subcheck{ flex:0 0 auto; width:21px;height:21px;border-radius:6px;border:2px solid var(--p-line);background:#fff; display:grid;place-items:center; }
   .subcheck svg{ width:62%;height:62%;stroke:#fff;stroke-width:3.4;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0;transform:scale(.4);transition:.16s var(--ease); }
@@ -206,7 +210,7 @@
     .weekhead.lap{ padding:16px 2px 14px; }
     .weekhead.lap .rng{ font-size:25px; }
     .weekgrid{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; align-items:start; }
-    .weekgrid.wkend .col.fut{ grid-column:span 3; }
+    /* superseded by the v1.2 weekend-row rules further down (E4) */
     .weeklabel{ display:flex; align-items:baseline; gap:9px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:800; color:var(--ink-2); margin:18px 2px 9px; }
     .weeklabel:first-of-type{ margin-top:6px; }
     .weeklabel span{ font-size:10.5px; letter-spacing:.04em; text-transform:none; font-weight:620; color:var(--faint); }
@@ -216,6 +220,11 @@
     .colhead{ display:flex; align-items:baseline; gap:6px; padding:2px 3px 9px; }
     .colhead{ flex-wrap:wrap; }
     .colhead .dayhx{ margin-left:auto; display:flex; align-items:center; gap:6px; max-width:100%; }
+    /* Scoped to the weekend row only. Six columns there squeeze a day head to ~126px and
+       the gym tick plus the three health figures overflowed by 5-17px; letting them fall
+       onto a second line fixes that. Unscoped it also fired in the Mon-Fri row at 820px,
+       where v1.1 never overflowed — +23px of header in all five columns for nothing. */
+    .weekgrid.wkend .colhead .dayhx{ flex-wrap:wrap; row-gap:3px; justify-content:flex-end; }
     .colhead .hmini{ flex-wrap:nowrap; white-space:nowrap; flex:0 0 auto; }
     .colhead .dayhx .gymdot{ margin-left:0; flex:0 0 auto; }
     .hmini{ display:flex; gap:5px; align-items:flex-end; }
@@ -383,7 +392,16 @@
   .trust-v{ font-size:11.5px; color:var(--muted); font-weight:600; margin-top:3px; }
   .trust-rules{ margin:11px 0 0; padding-left:18px; } .trust-rules li{ font-size:12.5px; color:var(--ink-2); line-height:1.5; margin-bottom:4px; }
   .trust-foot{ margin-top:8px; font-size:11.5px; color:var(--muted); line-height:1.5; }
-  .dlg .frow{ display:flex; gap:10px; }
+  .dlg .frow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .dlg .chiprow.nowrap{ flex-wrap:nowrap; }
+  /* the lane toggle rides on the Task label's line, so adding it costs ~14px of dialog
+     height rather than a whole row — measured: it pushed Save below the fold at 1280x720 */
+  .dlg .labrow{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px; margin:9px 0 4px; }
+  .dlg .labrow label{ margin:0; }
+  .dlg #f-lane .dchip{ padding:2px 11px; font-size:11.5px; font-weight:720; border-radius:9px; min-height:24px; }
+  /* on the phone it is a finger, not a pointer — 22px was half the 44px the rest of the
+     app uses. Costs height only where there is room for it. */
+  body[data-lay="phone"] .dlg #f-lane .dchip{ min-height:40px; padding:8px 14px; font-size:12.5px; }
   .dlg select, .dlg input[type="datetime-local"], .dlg input[type="date"]{ width:100%; background:var(--paper-2); border:1px solid var(--hair); border-radius:12px; padding:11px 12px; font-size:14.5px; color:var(--ink); }
   .dlg .chiprow{ display:flex; flex-wrap:wrap; gap:7px; }
   .dlg .dchip{ font-size:12.5px; font-weight:640; padding:8px 12px; border-radius:11px; background:var(--paper-2); border:1px solid var(--hair); color:var(--ink-2); }
@@ -419,6 +437,7 @@
   .gymchip.on{ color:var(--good); border-color:var(--good); background:var(--good-wash); }
   .chiprow.wrap{ flex-wrap:wrap; }
   .dchip.nxtc{ border-color:#cfdbe1; background:#e9eef1; }
+  .dchip.todc{ border-color:var(--p-line); background:var(--p-wash); color:var(--p); font-weight:780; }
   .addmini.warn{ margin-left:auto; color:#a05a2c; border-color:#e0c3a8; background:#f6ead9; }
   .col.late{ background:#f3ddc9; border-color:#e0bb92; }
   .col.late .colhead .dw{ color:#a05a2c; }
@@ -438,8 +457,20 @@
   .pill.wctag{ opacity:.65; }
   .dp.late{ background:#f6e7d8; border-color:#e8cfae; }
   .dp.late .d{ color:#a05a2c; font-weight:760; }
-  .weekgrid.wkend .col.fut{ grid-column:span 2; }
-  .weekgrid.wkend.haslate .col.fut{ grid-column:span 1; }
+  /* v1.2 (E4): the weekend row now carries Future AND next week's pool.
+     5 slots normally (Weekend, Sat, Sun, Future, Next week); 6 when the Not-done
+     column is also present. Below 1280 the six-across squeeze is worse than a
+     wrap, so next week takes a full-width row of its own instead of a sliver —
+     which is exactly the Sunday-planning case the split was asked for. */
+  .weekgrid.wkend{ grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .weekgrid.wkend .col.fut, .weekgrid.wkend .col.nxt{ grid-column:span 1; }
+  .weekgrid.wkend.haslate{ grid-template-columns:repeat(6,minmax(0,1fr)); }
+  /* No narrow-width wrap. Measured: wrapping put next week in a full-width band with
+     1,100-1,200px-wide task cards and a 160-225px dead gap above it. Six across instead
+     costs ~17% of column width whenever the Not-done column is present: 221px at 1440,
+     194px at 1280, 153px at 1024, 126px at 860, against 267/235/186/153 in v1.1.
+     NOT claimed: that this puts the weekend row on one screen. It does not, and never
+     did — that row starts 593-983px down the page in both versions. */
   .t{ -webkit-touch-callout:none; }
   .viewtog{ font-size:11.5px; font-weight:660; width:auto !important; padding:0 10px; }
 </style>
@@ -579,8 +610,13 @@ function migrate(db){
 }
 function saveDB(){ try{ DB.savedAt=Date.now(); DB._uid=UID; localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){} flashSaved(); scheduleSync(); }
 
-const todayISO = (()=>{ const n=new Date(); return isoOf(n.getFullYear(),n.getMonth(),n.getDate()); })();
-const todayMonday = isoMonday(new Date());
+/* v1.2 (E3): the date is recomputed, not frozen at load. A tab left open past
+   midnight used to keep treating yesterday as today — wrong day highlighted, gym
+   tick on the wrong date. These stay module-level reads everywhere else; only
+   dateTick() below ever writes them. */
+const computeTodayISO = () => { const n=new Date(); return isoOf(n.getFullYear(),n.getMonth(),n.getDate()); };
+let todayISO = computeTodayISO();
+let todayMonday = isoMonday(new Date());
 function todayDayIdx(){ const [y,m,d]=todayISO.split('-').map(Number); return ((new Date(y,m-1,d).getDay()+6)%7); }
 
 const ui = {
@@ -597,9 +633,28 @@ const ui = {
 };
 
 /* ---------- data access ---------- */
-function curWeek(){ return DB.weeks[ui.weekKey]; }
+/* v1.2 (round 2): a render must never create a week.
+   ensureWeek() mints recurring instances and does not save; calling it from a render
+   made the device's in-memory task count exceed the cloud's, which diverted the next
+   pull into "Two copies found" instead of adopting the other device's edit, and the
+   following save then overwrote it — under a green Synced badge. weekView() returns
+   the real week when it exists and a correctly-shaped throwaway when it does not, so
+   every read path is safe. Writers keep using ensureWeek(), and every writer saves. */
+let _shimKey=null, _shimWk=null;
+function weekView(iso){
+  if(!iso) return null;
+  if(DB.weeks[iso]) return DB.weeks[iso];
+  if(_shimKey!==iso){
+    const [y,m,d]=iso.split('-').map(Number);
+    _shimWk={ key:iso, monday:[y,m-1,d], days:emptyWeekDays(iso), future:{personal:[],work:[]}, weekend:{personal:[],work:[]}, __shim:true };
+    _shimKey=iso;
+  }
+  return _shimWk;
+}
+function curWeek(){ return DB.weeks[ui.weekKey] || weekView(ui.weekKey); }
 function ensureWeek(iso){
   if(!DB.weeks[iso]){
+    _shimKey=null;                       // a real week now exists; drop any throwaway for it
     const [y,m,d]=iso.split('-').map(Number);
     DB.weeks[iso] = { key:iso, monday:[y,m-1,d], days:emptyWeekDays(iso), future:{personal:[],work:[]}, weekend:{personal:[],work:[]} };
     applyRecurring(DB.weeks[iso]);
@@ -656,7 +711,7 @@ const view = document.getElementById('view');
 function render(){
   document.body.className = 'v-'+ui.view;
   document.body.dataset.lay = isLap()?'lap':'phone';
-  if(!ui.weekKey){ ensureWeek(todayMonday); ui.weekKey = todayMonday; }   // always open on the real current week
+  if(!ui.weekKey){ ensureWeek(todayMonday); ui.weekKey = todayMonday; }   // boot only: materialise the current week once, as v1.1 does
   renderChrome();
   if(ui.view==='today') renderToday();
   else if(ui.view==='week') renderWeek();
@@ -750,7 +805,7 @@ function listHTML(arr, ctx, opts){
 
 /* ----- TODAY ----- */
 function renderToday(){
-  const wk = ensureWeek(todayMonday);
+  const wk = weekView(todayMonday);
   const wKey = wk.key, di = todayDayIdx();
   const d = wk.days[di];
   const all = dayTasks(wk, di);
@@ -827,7 +882,7 @@ function lapAddRow(){
 
 /* ----- WEEK ----- */
 function renderWeek(){
-  const wk = ensureWeek(ui.weekKey);
+  const wk = weekView(ui.weekKey);
   const start = ui.weekKey, end = addDays(start,6);
   const [sy,sm,sd]=start.split('-').map(Number), [ey,em,ed]=end.split('-').map(Number);
   const range = `${sd} ${MON[sm-1]} – ${ed} ${MON[em-1]}`;
@@ -840,7 +895,19 @@ function renderWeek(){
     const weekRow=[0,1,2,3,4].map(mkCol).join('');
     const wkndCol=`<div class="col wkd"><div class="colhead"><span class="dw">Weekend</span><span class="nn">w/c ${sd} ${MON[sm-1]}</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
     const odCol=overdueColHTML('');
-    const weekendRow=odCol+wkndCol+[5,6].map(mkCol).join('') + `<div class="col fut"><div class="colhead"><span class="dw">Future</span><span class="nn">unscheduled</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
+    /* v1.2 (E4): next week's pool sits beside Future so the Sunday sort — last
+       week's leftovers, the days, both pools — happens on one screen. Same drop
+       targets as Week+; cross-week drag was already supported. */
+    /* Read-only. ensureWeek() mints recurring instances and does NOT save, so calling
+       it from a render made the laptop's in-memory task count exceed the cloud's: the
+       next pull was diverted into "Two copies found", the phone's edit was not adopted,
+       and the following save overwrote it. The week is created on the drop instead —
+       a user action that ends in saveDB(). */
+    const nxKey=addDays(ui.weekKey,7); const nwk=weekView(nxKey);
+    const [nxy,nxm,nxd]=nxKey.split('-').map(Number);
+    const futCol=`<div class="col fut"><div class="colhead"><span class="dw">Future</span><span class="nn">unscheduled</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
+    const nextCol=`<div class="col nxt"><div class="colhead"><span class="dw">Next week</span><span class="nn">w/c ${nxd} ${MON[nxm-1]}</span></div>${laneHTML(nwk,'F','personal')}${laneHTML(nwk,'F','work')}</div>`;
+    const weekendRow=odCol+wkndCol+[5,6].map(mkCol).join('') + futCol + nextCol;
     view.innerHTML = `<div class="lapwrap">
         <div class="weekhead lap ${isPast?'past':''}">
           <div class="rng">${range} <small>${tag}</small></div>
@@ -850,7 +917,7 @@ function renderWeek(){
         ${carryNextBtn(wk)}
         <div class="weeklabel">Week <span>Mon–Fri</span></div>
         <div class="weekgrid">${weekRow}</div>
-        <div class="weeklabel">Weekend <span>floating · Sat–Sun · + Future${odCol?' · + not done':''}</span></div>
+        <div class="weeklabel">Weekend <span>floating · Sat–Sun · + Future · + next week${odCol?' · + not done':''}</span></div>
         <div class="weekgrid wkend ${odCol?'haslate':''}">${weekendRow}</div>
       </div>`;
   } else {
@@ -883,9 +950,11 @@ function renderWeek(){
 }
 /* ----- WEEK+ (horizontal snap strip · pool → Mon–Fri → Weekend → Sat/Sun → next week) ----- */
 function renderWeekPlus(){
-  const wk = ensureWeek(ui.weekKey);
+  /* this call site was creating next week on every Week+ render in v1.1 too — the same
+     critical fault, reachable just by opening the view. Fixed here as well. */
+  const wk = weekView(ui.weekKey);
   const nxKey = addDays(ui.weekKey,7);
-  const nwk = ensureWeek(nxKey);
+  const nwk = weekView(nxKey);
   const start=ui.weekKey, end=addDays(start,6);
   const [sy,sm,sd]=start.split('-').map(Number), [ey,em,ed]=end.split('-').map(Number), [ny,nm,nd]=nxKey.split('-').map(Number);
   const range=`${sd} ${MON[sm-1]} – ${ed} ${MON[em-1]}`;
@@ -1764,14 +1833,17 @@ function openEdit(ctx){
   const projOpts = `<option value="">No project</option>`+(DB.projects||[]).map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
   const base=moveBaseFor(wk); const bwk=ensureWeek(base); const fromPast=base!==wk.key;
   const nxIso=addDays(base,7); const [nxy,nxm,nxd]=nxIso.split('-').map(Number);
+  const inToday = (wk.key===todayMonday && di===todayDayIdx());
   const dayOpts = (fromPast?`<option value="" selected>w/c ${wcShort(wk.key)} (leave where it is)</option>`:'')
+    + (inToday?'':`<option value="T">→ Today</option>`)
     + bwk.days.map((d,i)=>`<option value="${i}" ${(!fromPast&&di===i)?'selected':''}>${d.dow} ${d.n}</option>`).join('')
     +`<option value="W" ${(!fromPast&&di==='W')?'selected':''}>Weekend (floating)</option>`
     +`<option value="F" ${(!fromPast&&di==='F')?'selected':''}>Future</option>`
     +`<option value="N">→ Next week · w/c ${nxd} ${MON[nxm-1]}</option>`;
   const modes=[['','Off'],['prompt','Prompt'],['workflow','Workflow'],['cowork','Cowork'],['code','Code']];
   openDialog(`<h3>Edit task</h3>
-    <label>Task</label><input id="f-label" value="${esc(t.label).replace(/"/g,'&quot;')}" enterkeyhint="done" />
+    <div class="labrow"><label>Task</label><div class="chiprow nowrap" id="f-lane"><button type="button" class="dchip ${t.kind==='work'?'':'on'}" data-lane="personal">Personal</button><button type="button" class="dchip ${t.kind==='work'?'on':''}" data-lane="work">Work</button></div></div>
+    <input id="f-label" value="${esc(t.label).replace(/"/g,'&quot;')}" enterkeyhint="done" />
     <div class="frow">
       <div style="flex:1;min-width:0"><label>Day</label><select id="f-day">${dayOpts}</select></div>
       <div style="flex:1;min-width:0"><label>Project</label><select id="f-proj">${projOpts}</select></div>
@@ -1786,6 +1858,7 @@ function openEdit(ctx){
     <div class="chiprow" id="f-remindq"><button type="button" class="dchip" data-rq="none">None</button><button type="button" class="dchip" data-rq="tonight">Tonight 7pm</button><button type="button" class="dchip" data-rq="tom">Tomorrow 9am</button></div>
     <input id="f-remind" type="datetime-local" value="${t.remind?(''+t.remind).slice(0,16):''}" />
     <div class="acts"><button class="clear" data-x="del">Delete</button><button class="cancel" data-x="cancel">Cancel</button><button class="save" data-x="save">Save</button></div>`);
+  dlg.querySelector('#f-lane').addEventListener('click',e=>{ const b=e.target.closest('[data-lane]'); if(!b)return; dlg.querySelectorAll('#f-lane .dchip').forEach(x=>x.classList.toggle('on',x===b)); });
   dlg.querySelector('#f-claude').addEventListener('click',e=>{ const b=e.target.closest('[data-cm]'); if(!b)return; dlg.querySelectorAll('#f-claude .dchip').forEach(x=>x.classList.toggle('on',x===b)); });
   dlg.querySelector('#f-remindq').addEventListener('click',e=>{ const b=e.target.closest('[data-rq]'); if(!b)return; const inp=dlg.querySelector('#f-remind'); const q=b.dataset.rq; inp.value = q==='tonight'?todayISO+'T19:00' : q==='tom'?addDays(todayISO,1)+'T09:00' : ''; });
   dlg.querySelector('.acts').addEventListener('click', e=>{
@@ -1803,21 +1876,34 @@ function openEdit(ctx){
       const rv = dlg.querySelector('#f-remind').value; t.remind = rv || null;
       const md=dlg.querySelector('#f-movedate').value;
       const dv = dlg.querySelector('#f-day').value;
+      // v1.2 (E2): lane is settled BEFORE any move, so the task lands in the lane he chose
+      const pickedLane = (dlg.querySelector('#f-lane .dchip.on')?.dataset.lane==='work') ? 'work' : 'personal';
+      const laneChanged = pickedLane!==t.kind;
+      if(laneChanged) t.kind=pickedLane;
+      let moved=false;
       if(/^\d{4}-\d{2}-\d{2}$/.test(md)){
         const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
         const wkKey=isoMonday(new Date(+md.slice(0,4),+md.slice(5,7)-1,+md.slice(8,10)));
         const wk2=ensureWeek(wkKey); if(wkKey>ctx.wk.key) t.defers=(t.defers||0)+1;
-        wk2.days[daysBetween(wkKey,md)][t.kind].push(t);
+        wk2.days[daysBetween(wkKey,md)][t.kind].push(t); moved=true;
+      } else if(dv==='T'){
+        const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
+        const twk=ensureWeek(todayMonday); if(todayMonday>ctx.wk.key) t.defers=(t.defers||0)+1;
+        twk.days[todayDayIdx()][t.kind].push(t); moved=true;
       } else if(dv==='N'){
         const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
-        const nwk=ensureWeek(addDays(base,7)); t.defers=(t.defers||0)+1; nwk.future[t.kind].push(t);
+        const nwk=ensureWeek(addDays(base,7)); t.defers=(t.defers||0)+1; nwk.future[t.kind].push(t); moved=true;
       } else if(dv!==''){
         const newDi = (dv==='F'||dv==='W')?dv:Number(dv);
         if(fromPast || newDi!==ctx.di){
           const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
           if(base>ctx.wk.key) t.defers=(t.defers||0)+1;
-          colArr(bwk,newDi,t.kind).push(t);
+          colArr(bwk,newDi,t.kind).push(t); moved=true;
         }
+      }
+      if(!moved && laneChanged){          // same slot, other lane — re-file it where it stands
+        const pos=ctx.arr.indexOf(t); if(pos>=0)ctx.arr.splice(pos,1);
+        colArr(ctx.wk, ctx.di, t.kind).push(t);
       }
       closeDialog(); saveDB(); render();
     }
@@ -1876,6 +1962,7 @@ function openAddRecur(){
 }
 function moveTask(ctx, target, baseKey){
   const {t}=ctx;
+  if(target==='T') target = todayISO;   // resolved now, so a sheet held open past midnight still means today
   const base = baseKey || ctx.wk.key;   // for overdue (past-week) tasks the move targets the CURRENT week, not the week they were left in
   const pos=ctx.arr.indexOf(t); if(pos<0){ closeDialog(); return; }
   if(target==='N'){
@@ -1905,7 +1992,15 @@ function openMoveSheet(ctx){
   const fromPast = base!==wk.key;
   const nx=addDays(base,7); const [ny2,nm2,nd2]=nx.split('-').map(Number);
   const chips=[];
-  bwk.days.forEach((d,i)=>{ if(fromPast || i!==di) chips.push(`<button type="button" class="dchip" data-mv="${i}">${d.dow} ${d.n}</button>`); });
+  /* v1.2 (E1): a task sitting in next week's pool had no route back to today —
+     the day chips are built from the week the task lives in, so today was never
+     offered. Drag covered it on the laptop; the phone had nothing. Today first. */
+  const inToday = (wk.key===todayMonday && di===todayDayIdx());
+  /* 'T' is resolved when the chip is clicked, not when it is drawn — a sheet left open
+     across midnight would otherwise file the task into yesterday. */
+  if(!inToday) chips.push(`<button type="button" class="dchip todc" data-mv="T">Today</button>`);
+  const skipDup = !inToday && base===todayMonday;   // today already has its own chip; don't offer the same day twice
+  bwk.days.forEach((d,i)=>{ if((fromPast || i!==di) && !(skipDup && i===todayDayIdx())) chips.push(`<button type="button" class="dchip" data-mv="${i}">${d.dow} ${d.n}</button>`); });
   if(fromPast || di!=='W') chips.push(`<button type="button" class="dchip wkdc" data-mv="W">Weekend</button>`);
   if(fromPast || di!=='F') chips.push(`<button type="button" class="dchip futc" data-mv="F">Future</button>`);
   chips.push(`<button type="button" class="dchip nxtc" data-mv="N">Next week · w/c ${nd2} ${MON[nm2-1]}</button>`);
@@ -2034,24 +2129,49 @@ document.addEventListener('pointerdown', e=>{
   const row=grip.closest('.t'); const ctx=findTask(row); if(!ctx) return;
   dragging=true; row.classList.add('dragging');
   const srcArr=ctx.arr, srcObj=ctx.t;
-  function listUnder(x,y){ const el=document.elementFromPoint(x,y); if(!el)return null; const L=el.closest('.list'); return L; }
+  /* Where a release actually lands. Anywhere inside a column counts — its header, a lane
+     label, the gap between lanes — because that is plainly what was aimed at. Outside every
+     column is not a drop at all, and the Not-done column has no data-bearing lane so it stays
+     undroppable. Previously a release over a header or over blank page committed the task to
+     whichever list the cursor had last crossed on the way, with no toast. */
+  function resolveTarget(x,y){
+    const el=document.elementFromPoint(x,y); if(!el) return null;
+    const L=el.closest('.list'); if(L) return laneFor(L);
+    const col=el.closest('.col'); if(!col) return null;
+    const any=col.querySelector('.list[data-w][data-k]');
+    return any ? laneFor(any) : null;
+  }
+  /* v1.2 (E2): the COLUMN under the pointer is the target, never the lane.
+     Dragging a work task out of a long Future column crosses Personal on the way,
+     and releasing there used to silently re-label it. Now it snaps to its own lane
+     in whichever column the pointer is over — visible while dragging, not just on
+     release. Re-laning moved to the Edit dialog, where it is deliberate. */
+  function laneFor(L){
+    if(!L) return null;
+    if(L.dataset.k===srcObj.kind) return L;
+    if(!L.dataset.w || L.dataset.d===undefined) return null;
+    const sel='.list[data-w="'+L.dataset.w+'"][data-d="'+L.dataset.d+'"][data-k="'+srcObj.kind+'"]';
+    const scope=L.closest('.col');
+    return (scope&&scope.querySelector(sel)) || document.querySelector(sel);
+  }
   function move(ev){
-    const L=listUnder(ev.clientX,ev.clientY)||row.parentNode;
+    const L=resolveTarget(ev.clientX,ev.clientY)||row.parentNode;
     const others=[...L.querySelectorAll('.t:not(.dragging)')];
     const after=others.find(r=>{ const b=r.getBoundingClientRect(); return ev.clientY < b.top+b.height/2; });
     if(after) L.insertBefore(row,after); else L.appendChild(row);
   }
-  function up(){
+  function up(ev){
+    const tgt=(ev && typeof ev.clientX==='number') ? resolveTarget(ev.clientX,ev.clientY) : null;
     dragging=false; row.classList.remove('dragging');
     window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up);
-    const tgt=row.closest('.list'); if(!tgt){ render(); return; }
-    const wk=DB.weeks[tgt.dataset.w]; const di=(tgt.dataset.d==='F'||tgt.dataset.d==='W')?tgt.dataset.d:Number(tgt.dataset.d); const kind=tgt.dataset.k;
-    if(!wk || !kind || !tgt.dataset.w){ render(); return; }   // dropped somewhere that isn't a real lane (e.g. the overdue list) — put it back, touch nothing
+    if(!tgt){ render(); return; }   // released outside any column — put it back, touch nothing
+    const wk=DB.weeks[tgt.dataset.w] || (/^\d{4}-\d{2}-\d{2}$/.test(tgt.dataset.w||'') ? ensureWeek(tgt.dataset.w) : null);
+    const di=(tgt.dataset.d==='F'||tgt.dataset.d==='W')?tgt.dataset.d:Number(tgt.dataset.d); const kind=tgt.dataset.k;
+    if(!wk || !tgt.dataset.w || (kind!=='personal' && kind!=='work')){ render(); return; }   // dropped somewhere that isn't a real lane (e.g. the overdue list) — put it back, touch nothing
+    if(kind!==srcObj.kind){ render(); return; }               // lane lock: a drag never re-labels a task. Fails safe — no move at all rather than a wrong one
     // if a cloud adoption swapped the data out mid-drag, our captured task object is stale — inserting it would resurrect a duplicate
     const still=findTask(row); if(!still || still.t!==srcObj){ render(); return; }
     const sPos=srcArr.indexOf(srcObj); if(sPos>=0) srcArr.splice(sPos,1);
-    // moving lanes/days changes kind to the target lane
-    if(srcObj.kind!==kind) srcObj.kind=kind;
     if(wk && ctx.wk && wk.key>ctx.wk.key) srcObj.defers=(srcObj.defers||0)+1;   // cross-week drag counts as a defer, same as every other move route
     const tgtArr=colArr(wk,di,kind);
     let newIdx=[...tgt.querySelectorAll('.t')].indexOf(row); if(newIdx<0)newIdx=tgtArr.length;
@@ -2116,6 +2236,50 @@ function syncAddbar(){
   else if(ui.view==='week'||ui.view==='weekplus'){ const wk=curWeek(); const where= ui.dayIdx==='F'?'Future':(ui.dayIdx==='W'?'Weekend':(ui.dayIdx==='L'?'today':(wk.days[ui.dayIdx]?wk.days[ui.dayIdx].dow:''))); inp.placeholder='Add to '+where+'…'; }
 }
 
+/* ---------- v1.2 (E3): date rollover on a page left open ----------
+   Recompute on a timer and whenever the window is focused. A redraw is deferred
+   while a dialog is open or a drag is in flight, so nothing typed is thrown away;
+   the deferred redraw is applied as soon as the way is clear. */
+let _dateDeferred=false;
+function dateChanged(){
+  const nISO = computeTodayISO();
+  if(nISO === todayISO) return false;
+  const oldMonday = todayMonday, oldIdx = todayDayIdx();
+  todayISO = nISO;
+  todayMonday = isoMonday(new Date());
+  if(ui.weekKey === oldMonday) ui.weekKey = todayMonday;     // follow the week over a Sun→Mon boundary
+  if(ui.dayIdx === oldIdx) ui.dayIdx = todayDayIdx();        // only if it was tracking today, never a day he chose
+  return true;
+}
+function dateTick(){
+  if(dateChanged()) _dateDeferred = true;
+  if(!_dateDeferred) return;
+  if(dragging) return;                                        // mid-drag: the DOM is being moved about
+  if(dlg && dlg.open) return;                                 // mid-edit: never bin what he has typed
+  _dateDeferred = false;
+  /* Still no applyRecurringFrom — it dedupes only against the exact target day, so
+     re-running it duplicates any instance the user moved and resurrects any he deleted.
+     But if the new day belongs to a week that does not exist yet, create it ONCE and
+     SAVE it. ensureWeek only applies recurring rules to a brand-new (empty) week, so
+     there is nothing to duplicate, and saving is what keeps this device's count and the
+     cloud's in agreement — an unsaved in-memory week is the whole cross-device fault. */
+  /* ensureWeek only, and deliberately NO saveDB. An unattended save here bumps savedAt
+     with no user action, and both sync arbitrators then read this device as the newest
+     copy: the pull skips adopting (rSaved<=lSaved) and the push takes over on a 412 with
+     If-Match:null. Measured: the phone's whole evening of edits erased under a green
+     Synced badge, every Monday. Creating without saving is exactly what a page refresh
+     has always done — if the counts diverge the app raises "Two copies found", which is
+     loud and non-destructive. Loud beats silent. */
+  if(!DB.weeks[todayMonday]) ensureWeek(todayMonday);
+  render();
+}
+function watchDate(){
+  setInterval(dateTick, 60000);
+  window.addEventListener('focus', dateTick);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) dateTick(); });
+  document.addEventListener('close', dateTick, true);         // a dialog closing releases a deferred redraw
+}
+
 /* relayout on breakpoint cross — multiple triggers so the swap is always reliable */
 let _wasLap=null;
 function relayoutIfCrossed(){ const n=isLap(); if(n!==_wasLap){ _wasLap=n; render(); } }
@@ -2132,7 +2296,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v1.1';
+const APP_VERSION='v1.2';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -2581,6 +2745,7 @@ render();
 try{ initOneDrive(); }catch(e){}
 try{ refreshHealth(); }catch(e){}
 watchLayout();
+watchDate();
 primeReminders();
 setInterval(checkReminders, 60000);
 
