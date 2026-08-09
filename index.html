@@ -214,6 +214,19 @@
     .col.today{ border-color:var(--p-line); box-shadow:0 0 0 2px var(--p-wash); background:#fbf3e8; }
     .col.fut{ background:#f4ecdb; border-color:#e7d5b6; }
     .colhead{ display:flex; align-items:baseline; gap:6px; padding:2px 3px 9px; }
+    .colhead{ flex-wrap:wrap; }
+    .colhead .dayhx{ margin-left:auto; display:flex; align-items:center; gap:6px; max-width:100%; }
+    .colhead .hmini{ flex-wrap:nowrap; white-space:nowrap; flex:0 0 auto; }
+    .colhead .dayhx .gymdot{ margin-left:0; flex:0 0 auto; }
+    .hmini{ display:flex; gap:5px; align-items:flex-end; }
+    .hmini .hm{ display:flex; flex-direction:column; align-items:center; line-height:1; }
+    .hmini em{ font-style:normal; font-size:7px; letter-spacing:.07em; font-weight:820; color:var(--faint); }
+    .hmini b{ font-size:10.5px; font-weight:760; margin-top:2.5px; letter-spacing:-.02em; }
+    .hmini .hmSlp b{ color:#5b6ea8; }
+    .hmini .hmCal b{ color:var(--gold); }
+    .hmini .hmStp b{ color:#4e8a5a; }
+    .hmini .hm.none b{ color:var(--faint); font-weight:620; }
+    .hmini.smp{ opacity:.55; }
     .colhead .dw{ font-size:13px; font-weight:760; } .colhead .nn{ font-size:13px; font-weight:680; color:var(--muted); }
     .col.today .colhead .dw{ color:var(--p); } .col.fut .colhead .dw{ color:var(--gold); }
     .lanelab{ font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; font-weight:760; color:var(--faint); margin:8px 2px 6px; display:flex; justify-content:space-between; align-items:center; }
@@ -823,7 +836,7 @@ function renderWeek(){
   const tag = isThis?'this week':(isPast?'past':'ahead');
 
   if(isLap()){
-    const mkCol=(di)=>{ const d=wk.days[di]; const iso=addDays(ui.weekKey,di); const isToday=(ui.weekKey===todayMonday && di===todayDayIdx()); return `<div class="col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${iso<=todayISO?`<button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>`:''}</div>${apptsBlock(iso)}${laneHTML(wk,di,'personal')}${laneHTML(wk,di,'work')}</div>`; };
+    const mkCol=(di)=>{ const d=wk.days[di]; const iso=addDays(ui.weekKey,di); const isToday=(ui.weekKey===todayMonday && di===todayDayIdx()); return `<div class="col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${iso<=todayISO?`<span class="dayhx"><button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>${weekHealthChipsHTML(iso)}</span>`:''}</div>${apptsBlock(iso)}${laneHTML(wk,di,'personal')}${laneHTML(wk,di,'work')}</div>`; };
     const weekRow=[0,1,2,3,4].map(mkCol).join('');
     const wkndCol=`<div class="col wkd"><div class="colhead"><span class="dw">Weekend</span><span class="nn">w/c ${sd} ${MON[sm-1]}</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
     const odCol=overdueColHTML('');
@@ -1064,7 +1077,7 @@ const OD = {
 };
 (function(){ let r=location.origin+location.pathname; r=r.replace(/index\.html?$/i,''); OD.redirect=r; })();
 const DEPLOY_OK = /github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
-const odState = { connected:false, account:'', live:false, syncing:false, pulling:false, lastSync:0, lastPull:0, etag:null, error:null, backedUp:'' };
+const odState = { connected:false, account:'', live:false, syncing:false, pulling:false, lastSync:0, lastPull:0, etag:null, error:null, backedUp:'', expired:false };
 const hhmm = ts=>{ const d=new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); };
 
 /* ---- PKCE helpers (Web Crypto) ---- */
@@ -1079,19 +1092,35 @@ const CAL = {
   graph:'https://graph.microsoft.com/v1.0',
   tokKey:'wp:cal:tok', pkceKey:'wp:cal:pkce', redirect:OD.redirect,
 };
-const calState = { connected:false, account:'', syncing:false, lastSync:0, error:null };
+const calState = { connected:false, account:'', syncing:false, lastSync:0, error:null, expired:false };
 
-async function beginAuth(cfg, stateObj){
+async function beginAuth(cfg, stateObj, opts){
+  opts=opts||{};
   if(!DEPLOY_OK){ flashToast((cfg===OD?'OneDrive':'Outlook')+' connect runs on your live GitHub Pages site'); return; }
   const verifier=randStr(48), state=randStr(16);
   localStorage.setItem(cfg.pkceKey, JSON.stringify({verifier,state}));
   const challenge=b64url(await sha256(verifier));
   const u=new URL(cfg.authority+'/oauth2/v2.0/authorize');
-  u.search=new URLSearchParams({ client_id:cfg.clientId, response_type:'code', redirect_uri:cfg.redirect, response_mode:'query', scope:cfg.scopes, code_challenge:challenge, code_challenge_method:'S256', state, prompt:'select_account' }).toString();
+  u.search=new URLSearchParams({ client_id:cfg.clientId, response_type:'code', redirect_uri:cfg.redirect, response_mode:'query', scope:cfg.scopes, code_challenge:challenge, code_challenge_method:'S256', state, prompt:(opts.prompt||'select_account') }).toString();
+  if(opts.login_hint){ const q=new URLSearchParams(u.search); q.set('login_hint',opts.login_hint); u.search=q.toString(); }
   location.assign(u.toString());
 }
 function connectOneDrive(){ return beginAuth(OD, odState); }
-function connectOutlook(){ return beginAuth(CAL, calState); }
+function connectOutlook(){ sessionStorage.removeItem('wp:cal:interactive'); return beginAuth(CAL, calState); }
+/* Reconnect without the account picker where possible: prompt=none is a top-level
+   round trip against the live Microsoft session, so it does not depend on third-party
+   cookies and works in the iOS home-screen app too. If Microsoft says a human is
+   needed, handleRedirect falls through to the normal interactive sign-in once. */
+function reconnectOutlook(){
+  sessionStorage.removeItem('wp:cal:interactive');
+  /* Without a login_hint, Entra answers prompt=none with login_required whenever more
+     than one account is live in the browser session — and there always are two here
+     (personal MSA for OneDrive, work account for the calendar). Naming the account is
+     what makes the silent leg actually succeed. */
+  let hint='';
+  try{ hint=(JSON.parse(localStorage.getItem(CAL.tokKey)||'null')||{}).account||calState.account||''; }catch(e){}
+  return beginAuth(CAL, calState, {prompt:'none', login_hint:hint});
+}
 function cleanUrl(){ try{ history.replaceState({}, '', OD.redirect); }catch(e){} }
 async function tokenRequest(cfg, extra){
   const body=new URLSearchParams(Object.assign({client_id:cfg.clientId, scope:cfg.scopes}, extra));
@@ -1102,11 +1131,30 @@ function storeToken(cfg, stateObj, j){
   const tok={ access:j.access_token, refresh:j.refresh_token, exp:Date.now()+(j.expires_in||3600)*1000, account:stateObj.account };
   try{ if(j.id_token){ const c=JSON.parse(atob(j.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); tok.account=c.preferred_username||c.email||c.name||''; } }catch(e){}
   localStorage.setItem(cfg.tokKey, JSON.stringify(tok));
-  stateObj.connected=true; stateObj.account=tok.account||stateObj.account;
+  stateObj.connected=true; stateObj.expired=false; stateObj.account=tok.account||stateObj.account;
 }
 async function handleRedirect(){
   const p=new URLSearchParams(location.search); if(!p.get('code')&&!p.get('error')) return null;
-  if(p.get('error')){ odState.error='Sign-in: '+(p.get('error_description')||p.get('error')); cleanUrl(); return null; }
+  if(p.get('error')){
+    const err=p.get('error');
+    // work out which connection this belonged to, rather than always blaming OneDrive
+    let who=null, whoCfg=null;
+    for(const pair of [[OD,odState],[CAL,calState]]){
+      const blob=JSON.parse(localStorage.getItem(pair[0].pkceKey)||'null');
+      if(blob && p.get('state')===blob.state){ who=pair[1]; whoCfg=pair[0]; break; }
+    }
+    // a silent (prompt=none) attempt that needs a human is not an error — fall straight
+    // through to the interactive sign-in, once, then stop
+    if(who===calState && /interaction_required|login_required|consent_required/.test(err)){
+      localStorage.removeItem(CAL.pkceKey); cleanUrl();
+      if(!sessionStorage.getItem('wp:cal:interactive')){ sessionStorage.setItem('wp:cal:interactive','1'); beginAuth(CAL, calState); }
+      else { calState.expired=true; calState.error='Sign-in: '+(p.get('error_description')||err); }   // second failure: say why, never loop in silence
+      return null;
+    }
+    if(who){ who.error='Sign-in: '+(p.get('error_description')||err); if(whoCfg) localStorage.removeItem(whoCfg.pkceKey); }
+    else odState.error='Sign-in: '+(p.get('error_description')||err);
+    cleanUrl(); return null;
+  }
   let cfg=null, stateObj=null, saved=null;
   for(const pair of [[OD,odState],[CAL,calState]]){
     const blob=JSON.parse(localStorage.getItem(pair[0].pkceKey)||'null');
@@ -1118,7 +1166,23 @@ async function handleRedirect(){
 }
 async function getToken(cfg, stateObj){
   let tok=JSON.parse(localStorage.getItem(cfg.tokKey)||'null'); if(!tok) throw new Error('not connected');
-  if(Date.now() > tok.exp-60000){ if(!tok.refresh) throw new Error('session expired — reconnect'); const j=await tokenRequest(cfg, { grant_type:'refresh_token', refresh_token:tok.refresh }); storeToken(cfg, stateObj, j); tok=JSON.parse(localStorage.getItem(cfg.tokKey)); }
+  if(Date.now() > tok.exp-60000){
+    if(!tok.refresh){ stateObj.expired=true; const e0=new Error('session expired — sign in again'); e0.needsSignIn=true; throw e0; }
+    try{
+      const j=await tokenRequest(cfg, { grant_type:'refresh_token', refresh_token:tok.refresh });
+      storeToken(cfg, stateObj, j); stateObj.expired=false; tok=JSON.parse(localStorage.getItem(cfg.tokKey));
+    }catch(e){
+      /* Entra caps refresh tokens issued to an SPA redirect at a fixed 24h that cannot be
+         extended (AADSTS700084), so the work-tenant calendar dies daily by design. Surface
+         that as a plain sign-in prompt, never as a raw AADSTS string — but ONLY for a
+         genuinely dead grant. A 5xx or a dropped connection must stay a normal error,
+         or a flaky minute would latch the card into "signed out" and hide real faults. */
+      const dead=/invalid_grant|AADSTS700084|AADSTS70008|AADSTS50173|interaction_required|expired/i.test(e.message||'');
+      if(!dead) throw e;
+      stateObj.expired=true;
+      const err=new Error('session expired — sign in again'); err.needsSignIn=true; throw err;
+    }
+  }
   return tok.access;
 }
 async function gText(path){ const t=await getToken(OD, odState); const r=await fetch(OD.graph+path,{headers:{Authorization:'Bearer '+t}}); if(r.status===404) return null; if(!r.ok) throw new Error('read '+r.status); return r.text(); }
@@ -1353,7 +1417,7 @@ async function refreshCalendar(){
     const c={ __src:'outlook' };
     (j.value||[]).forEach(ev=>{ const s=ev.start&&ev.start.dateTime; if(!s) return; const iso=s.slice(0,10); (c[iso]=c[iso]||[]).push({ title:ev.subject||'(busy)', time:ev.isAllDay?'':s.slice(11,16), allDay:!!ev.isAllDay, loc:(ev.location&&ev.location.displayName)||'' }); });
     calCache=c; persistCalCache(); calState.lastSync=Date.now(); calState.error=null;
-  }catch(e){ calState.error='Calendar: '+e.message; }
+  }catch(e){ if(e&&e.needsSignIn){ /* the card's signed-out banner says this better; keep any specific reason already recorded */ } else { calState.error='Calendar: '+e.message; } }
   calState.syncing=false; updateSyncBadge();
 }
 function calDisconnect(){ localStorage.removeItem(CAL.tokKey); calState.connected=false; calState.account=''; calState.error=null; calCache=buildCalSample(); persistCalCache(); flashToast('Outlook disconnected — calendar cleared'); if(ui.view==='more') renderMore(); else render(); }
@@ -1369,8 +1433,8 @@ function calCardInner(){
   return `<div class="conn">
     <div class="conn-h"><div><div class="conn-t">Outlook · calendar <span class="conn-live" style="color:var(--w);background:var(--w-wash);border-color:var(--w-line)">● read-only</span></div><div class="conn-d">${esc(calState.account||'connected')}${calState.lastSync?' · refreshed '+hhmm(calState.lastSync):''}</div></div><span class="conn-badge">−14 / +63 d</span></div>
     ${personalish?`<div class="conn-warn">This should be your <b>work</b> account. If it isn’t, disconnect and reconnect with the work one.</div>`:''}
-    ${calState.error?`<div class="conn-warn">${esc(calState.error)}</div>`:''}
-    <div class="conn-row2"><button class="conn-btn ghost2" data-cal="refresh">Refresh now</button><button class="conn-btn ghost2" data-cal="disconnect">Disconnect</button></div>
+    ${calState.expired?`<div class="conn-warn">Signed out — Microsoft ends work-account sessions after 24 hours and will not extend them. Your appointments below are the last ones fetched.${calState.error?'<br><b>'+esc(calState.error)+'</b>':''}</div>`:(calState.error?`<div class="conn-warn">${esc(calState.error)}</div>`:'')}
+    <div class="conn-row2">${calState.expired?`<button class="conn-btn" data-cal="reconnect">Sign in again</button>`:`<button class="conn-btn ghost2" data-cal="refresh">Refresh now</button>`}<button class="conn-btn ghost2" data-cal="disconnect">Disconnect</button></div>
   </div>`;
 }
 
@@ -1534,8 +1598,9 @@ document.addEventListener('click', e=>{
   const b=e.target.closest('[data-cal]'); if(!b) return;
   const a=b.dataset.cal;
   if(a==='connect') connectOutlook();
+  else if(a==='reconnect') reconnectOutlook();
   else if(a==='disconnect') calDisconnect();
-  else if(a==='refresh'){ calState.error=null; if(ui.view==='more')renderMore(); refreshCalendar().then(()=>{ if(ui.view==='more')renderMore(); else render(); flashToast(calState.error?'Refresh failed':'Calendar refreshed'); }); }
+  else if(a==='refresh'){ calState.error=null; if(ui.view==='more')renderMore(); refreshCalendar().then(()=>{ if(ui.view==='more')renderMore(); else render(); flashToast(calState.error?'Refresh failed':(calState.expired?'Calendar signed out — sign in again':'Calendar refreshed')); }); }
 });
 
 function rerenderInPlace(){
@@ -2067,7 +2132,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v1.0';
+const APP_VERSION='v1.1';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -2224,7 +2289,7 @@ function fitHandleRedirect(){
   if(st && p.get('state') && p.get('state')!==st) return false;          // CSRF guard
   const tok={ access:p.get('access_token'), exp:Date.now()+((+p.get('expires_in')||31536000)*1000), user:p.get('user_id')||'' };
   try{ localStorage.setItem(FIT.tokKey, JSON.stringify(tok)); localStorage.removeItem(FIT.stateKey); }catch(e){ return false; }
-  fitState.connected=true;
+  fitState.connected=true; fitState.error=null;   // a fresh token must not inherit the old error, which would also arm the abort guard on the next refresh
   try{ history.replaceState({},'',location.pathname+location.search); }catch(e){}   // scrub ONLY the hash — a Microsoft ?code= in the query must survive for its own handler
   return true;
 }
@@ -2236,17 +2301,69 @@ async function fitGet(path){
   if(!r.ok) throw new Error('fitbit '+r.status);
   return r.json();
 }
-async function fitFetchDay(iso){
-  const [sleep, act]=await Promise.all([
-    fitGet('/1.2/user/-/sleep/date/'+iso+'.json').catch(()=>null),
-    fitGet('/1/user/-/activities/date/'+iso+'.json').catch(()=>null),
-  ]);
-  if(!sleep && !act) return null;
-  const sleepMins=(sleep&&sleep.summary&&Array.isArray(sleep.sleep)&&sleep.sleep.length)?sleep.summary.totalMinutesAsleep:null;   // 0 records = tracker not worn, not "0h sleep"
-  const a=(act&&act.summary)||null;
-  const activeMins=a?((a.fairlyActiveMinutes||0)+(a.veryActiveMinutes||0)):null;
-  const exercised=!!((act&&Array.isArray(act.activities)&&act.activities.length>0)||(activeMins!=null&&activeMins>=30));
-  return { sleepMins, steps:a&&a.steps!=null?a.steps:null, caloriesOut:a&&a.caloriesOut!=null?a.caloriesOut:null, activeMins, exercised };
+/* ---- Fitbit reads: TIME-SERIES endpoints only ----
+   Verified live against Tom's account on 9 Aug 2026, from the deployed origin:
+     /1/user/-/activities/date/{d}.json      -> blocked (no CORS headers; fetch rejects
+     /1.2/user/-/sleep/date/{d}.json         -> blocked  with TypeError, no status seen)
+     /1/user/-/activities/{metric}/date/a/b  -> 200 + data
+     /1/user/-/sleep/minutesAsleep/date/a/b  -> 200 + data
+   v1.0 called the two blocked families and swallowed the TypeError in a .catch, so the
+   first live connect stored zero days and reported no error. The time-series family
+   covers every metric shown and costs one request per metric for a whole range.
+   Ranges here are 7 days; Fitbit allows 1095 for these metrics and 30 for
+   activityCalories, and the per-user limit is 150 requests/hour — 6 per refresh,
+   throttled to twice an hour, is well inside both. */
+const FIT_SERIES = {
+  steps:        { path:'/1/user/-/activities/steps/date/',               key:'activities-steps' },
+  caloriesOut:  { path:'/1/user/-/activities/calories/date/',            key:'activities-calories' },
+  activityCals: { path:'/1/user/-/activities/activityCalories/date/',    key:'activities-activityCalories' },
+  sleepMins:    { path:'/1/user/-/sleep/minutesAsleep/date/',            key:'sleep-minutesAsleep' },
+  veryActive:   { path:'/1/user/-/activities/minutesVeryActive/date/',   key:'activities-minutesVeryActive' },
+  fairlyActive: { path:'/1/user/-/activities/minutesFairlyActive/date/', key:'activities-minutesFairlyActive' },
+};
+async function fitFetchSeries(metric, startIso, endIso){
+  const m=FIT_SERIES[metric];
+  const j=await fitGet(m.path+startIso+'/'+endIso+'.json');
+  const rows=j&&j[m.key];
+  if(!Array.isArray(rows)) throw new Error('fitbit: unexpected shape for '+metric);
+  const out={};
+  for(const r of rows){ const v=Number(r.value); out[r.dateTime]=Number.isFinite(v)?v:null; }
+  return out;
+}
+/* ALL OR NOTHING. Every metric must come back, or the whole run is abandoned and
+   nothing is written. A partial fetch used to write nulls over good readings, save
+   them, and — because the local copy then carried the newer updatedAt — push the
+   blanked week over the phone's good copy. One dropped request must never cost data. */
+async function fitFetchRange(startIso, endIso){
+  const names=Object.keys(FIT_SERIES);
+  const series={};
+  for(const n of names){
+    series[n]=await fitFetchSeries(n, startIso, endIso);   // no catch: first failure aborts
+  }
+  const days={};
+  for(const iso of Object.keys(series.caloriesOut)){
+    const cal=series.caloriesOut[iso];
+    const act=series.activityCals[iso];
+    const stp=series.steps[iso];
+    const slp=series.sleepMins[iso];
+    /* `calories` is inclusive of BMR, which Fitbit derives from profile data and reports
+       whether or not the device was ever worn — so a non-zero calorie figure does NOT
+       mean the tracker synced. A day only counts as real if something was actually
+       measured: movement, active burn, or a tracked night. */
+    const measured = (stp>0) || (act>0) || (slp>0);
+    if(!measured) continue;
+    const va=series.veryActive[iso], fa=series.fairlyActive[iso];
+    const activeMins=(va==null&&fa==null)?null:((va||0)+(fa||0));   // null, not 0, when neither row exists — otherwise a missing row silently zeroes a real 50
+    days[iso]={
+      sleepMins: (slp==null||slp<=0)?null:slp,   // 0 minutes = night not tracked, never "0h slept"
+      steps: stp==null?null:stp,                 // a genuine 0 steps on a day that did sync is kept
+      caloriesOut: (cal==null||cal<=0)?null:cal,
+      activeMins,
+      exercised: activeMins!=null && activeMins>=30,   // time series carries no activity log, so this is the
+                                                 // active-minutes heuristic only; gym tick stays separate
+    };
+  }
+  return days;
 }
 let _fitLast=0;
 async function refreshHealth(force){
@@ -2256,32 +2373,70 @@ async function refreshHealth(force){
   fitState.refreshing=true;
   try{
     if(!DB.health || DB.health.source!=='fitbit'){ DB.health={ source:'fitbit', updatedAt:Date.now(), days:{} }; }
-    const want=[];
-    for(let i=0;i<7;i++){ const iso=addDays(todayISO,-i); const d=DB.health.days[iso]; if(i<2 || !d || (d.sleepMins==null&&d.steps==null)) want.push(iso); }  // re-check today+yesterday always, and any day whose fetch previously came back empty — a transient API failure never permanently blanks a day
-    let changed=false, bad=false;
-    for(const iso of want){
-      const d=await fitFetchDay(iso);
-      if(fitState.error){ bad=true; break; }                               // token rejected mid-run — stop hammering the API, keep the error visible
-      if(d){ DB.health.days[iso]=d; changed=true; }
+    const start=addDays(todayISO,-6), end=todayISO;
+    let changed=false, fetched=null;
+    try{
+      fetched=await fitFetchRange(start,end);
+      fitState.error=null;                                                 // only a complete clean run clears it
+    }catch(e){
+      /* Any failure at all — 401, 429, 5xx, dropped connection, unexpected body — is
+         reported. Silence here is what hid the original bug for a whole day. */
+      if(!fitState.error) fitState.error = /^401$/.test(e.message)
+        ? 'Fitbit session expired — reconnect'
+        : 'Fitbit refresh failed ('+e.message+') — last known figures shown';
     }
-    DB.health.updatedAt=Date.now(); _fitLast=Date.now();
-    if(!bad) fitState.error=null;                                          // only a clean run clears an old error
+    if(fetched){
+      for(const iso of Object.keys(fetched)){
+        const prev=DB.health.days[iso], next=fetched[iso];
+        /* Last night and the night before may simply not have reached Fitbit yet, and a
+           null there would delete a real figure that can never come back. Older days are
+           left alone: the fetch is all-or-nothing, so for them a null is real information
+           — a deleted or corrected Fitbit log must be able to clear what we hold. */
+        const notYetSynced = iso>=addDays(todayISO,-1);
+        if(prev && notYetSynced){ for(const k of ['sleepMins','steps','caloriesOut','activeMins']){ if(next[k]==null && prev[k]!=null) next[k]=prev[k]; } }
+        if(!prev || JSON.stringify(prev)!==JSON.stringify(next)){ DB.health.days[iso]=next; changed=true; }
+      }
+      DB.health.updatedAt=Date.now();
+    }
+    _fitLast=Date.now();
     if(changed) saveDB();                                                  // health data syncs to the phone through OneDrive — no phone-side Fitbit login needed
     render();
-  }catch(e){ /* offline or expired — ribbon keeps last-known, never alarms */ }
+  }catch(e){ /* never throw into the app */ }
   fitState.refreshing=false;
+}
+/* ---- per-day micro-stats for the Week grid (sleep / calories / steps) ----
+   Sits immediately right of the gym tick in each day column head. Deliberately
+   terse: exact figures live in the title attribute, the column only has ~100px. */
+function hmK(n){ if(n==null) return null; return n>=10000?(n/1000).toFixed(1)+'k' : n>=1000?(n/1000).toFixed(1)+'k' : String(n); }
+function hmSleep(m){ if(m==null) return null; return (m/60).toFixed(1)+'h'; }
+function weekHealthChipsHTML(iso){
+  if(iso>todayISO) return '';
+  const r=healthDay(iso);
+  const smp=!!(DB.health&&DB.health.source==='sample');
+  const cell=(cls,key,val,tip)=>`<span class="hm ${cls}${val==null?' none':''}" title="${tip}"><em>${key}</em><b>${val==null?'\u2013':val}</b></span>`;   // class names are hm-prefixed: bare 's'/'c'/'t' would collide with global task styles
+  const slp=r?hmSleep(r.sleepMins):null, cal=r?hmK(r.caloriesOut):null, stp=r?hmK(r.steps):null;
+  const ex=(v,u)=>v==null?'no data':(v+' '+u);
+  return `<span class="hmini${smp?' smp':''}" aria-label="sleep, calories, steps for this day">`
+    + cell('hmSlp','SLP',slp, smp?'Sample data':('Sleep \u2014 '+(r&&r.sleepMins!=null?fmtHM(r.sleepMins):'not tracked')))
+    + cell('hmCal','CAL',cal, smp?'Sample data':('Calories out \u2014 '+ex(r&&r.caloriesOut,'kcal')))
+    + cell('hmStp','STP',stp, smp?'Sample data':('Steps \u2014 '+ex(r&&r.steps,'steps')))
+    + `</span>`;
 }
 function healthRibbonHTML(){
   if(!DB.health) return '';
-  const rec=healthDay(todayISO);
+  const rec=healthDay(todayISO) || (fitToken()? {sleepMins:null,steps:null,caloriesOut:null,activeMins:null,exercised:false} : null);
   if(!rec){ return `<button class="hribbon connect" data-go="more">Connect Fitbit / Google Health to see sleep, steps & calories here →</button>`; }
+  if(fitState.error){ return `<button class="hribbon connect" data-go="more">${esc(fitState.error)} — tap for the Connections card →</button>`+healthStatsHTML(rec); }
+  return healthStatsHTML(rec);
+}
+function healthStatsHTML(rec){
   const debt=sleepDebt(rec.sleepMins); const toGo=Math.max(0,STEP_GOAL-(rec.steps||0));
   const smp=DB.health&&DB.health.source==='sample';
   let exDays=0; for(let i=0;i<7;i++){ const iso=addDays(todayMonday,i); const r=healthDay(iso); if((!smp&&r&&r.exercised)||(DB.gym&&DB.gym[iso]))exDays++; }
   return `<div class="hribbon">
     <div class="hstat"><span class="hk">Sleep${smp?' · sample':''}</span><span class="hv">${rec.sleepMins!=null?fmtHM(rec.sleepMins):'—'}</span><span class="hs ${rec.sleepMins==null?'':(debt>0?'deficit':'ok')}">${rec.sleepMins==null?'no data':(debt>0?'−'+fmtHM(debt)+' vs 8h':'on target')}</span></div>
-    <div class="hstat"><span class="hk">Steps</span><span class="hv">${(rec.steps||0).toLocaleString()}</span><span class="hs">${toGo?toGo.toLocaleString()+' to 10k':'10k done ✓'}</span></div>
-    <div class="hstat"><span class="hk">Burned</span><span class="hv">${(rec.caloriesOut||0).toLocaleString()}</span><span class="hs">cal today</span></div>
+    <div class="hstat"><span class="hk">Steps</span><span class="hv">${rec.steps!=null?rec.steps.toLocaleString():'—'}</span><span class="hs">${rec.steps==null?'no data yet':(toGo?toGo.toLocaleString()+' to 10k':'10k done ✓')}</span></div>
+    <div class="hstat"><span class="hk">Burned</span><span class="hv">${rec.caloriesOut!=null?rec.caloriesOut.toLocaleString():'—'}</span><span class="hs">${rec.caloriesOut==null?'no data yet':'cal today'}</span></div>
     <div class="hstat"><span class="hk">Exercise</span><span class="hv">${exDays}</span><span class="hs">day${exDays!==1?'s':''} this week</span></div>
   </div>`;
 }
