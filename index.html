@@ -895,9 +895,11 @@ function renderWeek(){
     const weekRow=[0,1,2,3,4].map(mkCol).join('');
     const wkndCol=`<div class="col wkd"><div class="colhead"><span class="dw">Weekend</span><span class="nn">w/c ${sd} ${MON[sm-1]}</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
     const odCol=overdueColHTML('');
-    /* v1.2 (E4): next week's pool sits beside Future so the Sunday sort — last
-       week's leftovers, the days, both pools — happens on one screen. Same drop
-       targets as Week+; cross-week drag was already supported. */
+    /* v1.2 (E4): next week's pool sits beside Future so the Sunday sort — last week's
+       leftovers, the days, both pools — is reachable in one view instead of switching to
+       Week+. NOT claimed: that it fits on one screen. It does not; the weekend row starts
+       593-1091px down the page, in this version and the last one. Same drop targets as
+       Week+; cross-week drag was already supported. */
     /* Read-only. ensureWeek() mints recurring instances and does NOT save, so calling
        it from a render made the laptop's in-memory task count exceed the cloud's: the
        next pull was diverted into "Two copies found", the phone's edit was not adopted,
@@ -2257,13 +2259,9 @@ function dateTick(){
   if(dragging) return;                                        // mid-drag: the DOM is being moved about
   if(dlg && dlg.open) return;                                 // mid-edit: never bin what he has typed
   _dateDeferred = false;
-  /* Still no applyRecurringFrom — it dedupes only against the exact target day, so
-     re-running it duplicates any instance the user moved and resurrects any he deleted.
-     But if the new day belongs to a week that does not exist yet, create it ONCE and
-     SAVE it. ensureWeek only applies recurring rules to a brand-new (empty) week, so
-     there is nothing to duplicate, and saving is what keeps this device's count and the
-     cloud's in agreement — an unsaved in-memory week is the whole cross-device fault. */
-  /* ensureWeek only, and deliberately NO saveDB. An unattended save here bumps savedAt
+  /* No applyRecurringFrom — it dedupes only against the exact target day, so re-running it
+     duplicates any instance the user moved and resurrects any he deleted.
+     And deliberately NO saveDB. An unattended save here bumps savedAt
      with no user action, and both sync arbitrators then read this device as the newest
      copy: the pull skips adopting (rSaved<=lSaved) and the push takes over on a 412 with
      If-Match:null. Measured: the phone's whole evening of edits erased under a green
