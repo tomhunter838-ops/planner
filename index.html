@@ -473,6 +473,21 @@
      did — that row starts 593-983px down the page in both versions. */
   .t{ -webkit-touch-callout:none; }
   .viewtog{ font-size:11.5px; font-weight:660; width:auto !important; padding:0 10px; }
+/* ============ v2.0 additions ============ */
+.mvbtn{flex:0 0 auto;width:26px;height:26px;border:1px solid rgba(120,110,95,.35);background:transparent;border-radius:7px;font-size:12px;line-height:1;color:inherit;opacity:.5;cursor:pointer;padding:0}
+.t:hover .mvbtn,.mvbtn:focus{opacity:1}
+.t.done .mvbtn{opacity:.25}
+[data-lay="phone"] .mvbtn{width:30px;height:30px;font-size:14px;opacity:.65}
+body.hidedone :is(.weekgrid,.wp-scroll,.dayview) .t.done,
+body.hidedone :is(.weekgrid,.wp-scroll,.dayview) .t.done + .subs{display:none}
+.viewtog.on{background:var(--w,#557785);color:#fff}
+.t.seled{outline:2px solid var(--w,#557785);outline-offset:-2px}
+#selbar{position:fixed;left:50%;transform:translateX(-50%);bottom:78px;z-index:60;background:#2e2a24;color:#fff;border-radius:14px;padding:9px 12px;display:flex;gap:8px;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:14px}
+#selbar button{border:0;border-radius:9px;padding:8px 12px;cursor:pointer;font-size:13px}
+#selbar .save{background:var(--w,#557785);color:#fff}
+#selbar .cancel{background:#4a453d;color:#fff}
+[data-lay="lap"] #selbar{bottom:26px}
+.recc.newer{outline:2px solid #4e8a5a;outline-offset:-2px;border-radius:10px}
 </style>
 </head>
 <body>
@@ -624,6 +639,11 @@ const ui = {
   weekKey: null,                 // current week being viewed in Week
   dayIdx: todayDayIdx(),         // selected day in phone week (0..6 or 'F')
   kind: 'personal',
+  /* v2.0 (E2/E4): view prefs live in localStorage, NOT in DB — writing them through
+     saveDB() would bump savedAt and poke the sync arbiter for a cosmetic change. */
+  hideDone: (()=>{ try{ return localStorage.getItem('wp:ui:hidedone')==='1'; }catch(e){ return false; } })(),
+  selMode: false,                // E4 bulk-select: tap rows, then move them together
+  sel: new Set(),
   mvd: false,
   fullDay: false,
   doneToday: 0,
@@ -663,8 +683,15 @@ function ensureWeek(iso){
   return DB.weeks[iso];
 }
 function daysBetween(a,b){ const [y1,m1,d1]=a.split('-').map(Number),[y2,m2,d2]=b.split('-').map(Number); return Math.round((Date.UTC(y2,m2-1,d2)-Date.UTC(y1,m1-1,d1))/86400000); }
+/* v2.0 (E0): the nine rules in Tom's live store are in the ORIGINAL stored shape —
+   {day:0..6 (number), kind:'work'|'personal', freq:'w'} — while this code expected
+   {day:'Mon', lane:'work'}. DOW.indexOf(0) is -1, so not one of those rules had ever
+   created a task. Both shapes are now accepted; stored data is not rewritten. */
+function recurLane(r){ const v=r.lane||r.kind; return (v==='work'||v==='personal')?v:null; }
+function recurDayIdx(r){ if(typeof r.day==='number'&&r.day>=0&&r.day<=6) return r.day; const i=DOW.indexOf(r.day); return i; }
 function applyRecurring(week){
   (DB.recur||[]).forEach(r=>{
+    const lane=recurLane(r); if(!lane) return;
     if(r.type==='interval'){
       const every=Math.max(1,+r.every||1); const anchor=r.anchor;
       if(!/^\d{4}-\d{2}-\d{2}$/.test(anchor||'')) return;
@@ -673,15 +700,15 @@ function applyRecurring(week){
         if(iso<anchor) continue;
         if(iso<todayISO) continue;                 // never materialise instances on days already gone
         if(daysBetween(anchor,iso)%every!==0) continue;
-        const arr=week.days[i][r.lane]; if(!arr) continue;
-        if(!arr.some(t=>t.label===r.label)) arr.push(T(r.label, r.lane, {subs:(r.subs||[]).slice(), repeat:'every '+every+'d'}));
+        const arr=week.days[i][lane]; if(!arr) continue;
+        if(!arr.some(t=>t.label===r.label)) arr.push(T(r.label, lane, {subs:(r.subs||[]).slice(), repeat:'every '+every+'d'}));
       }
       return;
     }
-    const di = DOW.indexOf(r.day); if(di<0) return;
+    const di = recurDayIdx(r); if(di<0) return;
     if(addDays(week.key,di)<todayISO) return;      // never materialise instances on days already gone
-    const arr = week.days[di][r.lane];
-    if(!arr.some(t=>t.label===r.label)) arr.push(T(r.label, r.lane, {subs:(r.subs||[]).slice(), repeat:'weekly'}));
+    const arr = week.days[di][lane]; if(!arr) return;
+    if(!arr.some(t=>t.label===r.label)) arr.push(T(r.label, lane, {subs:(r.subs||[]).slice(), repeat:'weekly'}));
   });
 }
 // re-apply recurring rules to every already-created week from startKey forward (idempotent — label-match dedupe)
@@ -709,8 +736,10 @@ const isLap = () => { const f=document.getElementById('frame'); return (f?f.clie
 const view = document.getElementById('view');
 
 function render(){
-  document.body.className = 'v-'+ui.view;
+  document.body.className = 'v-'+ui.view + (ui.hideDone?' hidedone':'');
   document.body.dataset.lay = isLap()?'lap':'phone';
+  if(ui.view!=='week' && ui.view!=='weekplus' && ui.selMode){ ui.selMode=false; ui.sel.clear(); }
+  updateSelbar();
   if(!ui.weekKey){ ensureWeek(todayMonday); ui.weekKey = todayMonday; }   // boot only: materialise the current week once, as v1.1 does
   renderChrome();
   if(ui.view==='today') renderToday();
@@ -783,11 +812,14 @@ function taskRow(t, ctx, opts={}){
   const stuck = t.defers>=3 ? `<span class="stuck" title="carried ${t.defers} weeks">park me?</span>` : '';
   const tag = opts.tag ? `<span class="pill subs wctag">${opts.tag}</span>` : '';
   const grip = opts.grip ? `<span class="grip" data-act="grip">⠿</span>` : '';
-  let html = `<div class="t ${t.kind==='work'?'kwork':''} ${t.done?'done':''}" ${sel}>
+  /* v2.0 (E5): a visible, tappable move control on every row — right-click and
+     long-press stay, this is the discoverable route. Opens the existing move sheet. */
+  const mv = `<button class="mvbtn" data-act="movesheet" title="Move to another day" aria-label="move task">⇄</button>`;
+  let html = `<div class="t ${t.kind==='work'?'kwork':''} ${t.done?'done':''} ${ui.selMode&&ui.sel.has(t.id)?'seled':''}" ${sel}>
       ${grip}
       <button class="check" data-act="check" aria-label="complete">${CHK}</button>
       <span class="lab" data-act="edit">${esc(t.label)}</span>
-      ${tag}${stuck}${claudePill(t)}${remindPill(t)}${time}${subsPill}${chev}
+      ${tag}${stuck}${claudePill(t)}${remindPill(t)}${time}${subsPill}${mv}${chev}
     </div>`;
   if(t.open && sc>=0){
     const items = t.subs.map((s,j)=>`<div class="sub ${s.done?'done':''}" data-sub="${j}">
@@ -893,7 +925,7 @@ function renderWeek(){
   if(isLap()){
     const mkCol=(di)=>{ const d=wk.days[di]; const iso=addDays(ui.weekKey,di); const isToday=(ui.weekKey===todayMonday && di===todayDayIdx()); return `<div class="col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${iso<=todayISO?`<span class="dayhx"><button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>${weekHealthChipsHTML(iso)}</span>`:''}</div>${apptsBlock(iso)}${laneHTML(wk,di,'personal')}${laneHTML(wk,di,'work')}</div>`; };
     const weekRow=[0,1,2,3,4].map(mkCol).join('');
-    const wkndCol=`<div class="col wkd"><div class="colhead"><span class="dw">Weekend</span><span class="nn">w/c ${sd} ${MON[sm-1]}</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
+    const wkndCol=`<div class="col wkd"><div class="colhead"><span class="dw">Weekend</span><span class="nn">either day</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
     const odCol=overdueColHTML('');
     /* v1.2 (E4): next week's pool sits beside Future so the Sunday sort — last week's
        leftovers, the days, both pools — is reachable in one view instead of switching to
@@ -907,19 +939,21 @@ function renderWeek(){
        a user action that ends in saveDB(). */
     const nxKey=addDays(ui.weekKey,7); const nwk=weekView(nxKey);
     const [nxy,nxm,nxd]=nxKey.split('-').map(Number);
-    const futCol=`<div class="col fut"><div class="colhead"><span class="dw">Future</span><span class="nn">unscheduled</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
+    /* v2.0 (E6): one name for the pool everywhere — "Unscheduled". It was Future here,
+       "w/c … / Future" in Week+, "carries across weeks" on the phone and FUT in the strip. */
+    const futCol=`<div class="col fut"><div class="colhead"><span class="dw">Unscheduled</span><span class="nn">this week</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
     const nextCol=`<div class="col nxt"><div class="colhead"><span class="dw">Next week</span><span class="nn">w/c ${nxd} ${MON[nxm-1]}</span></div>${laneHTML(nwk,'F','personal')}${laneHTML(nwk,'F','work')}</div>`;
     const weekendRow=odCol+wkndCol+[5,6].map(mkCol).join('') + futCol + nextCol;
     view.innerHTML = `<div class="lapwrap">
         <div class="weekhead lap ${isPast?'past':''}">
           <div class="rng">${range} <small>${tag}</small></div>
-          <div class="navbtns"><button class="viewtog" data-go="weekplus" title="7-day strip view" aria-label="switch to Week plus strip view">⇄ Week+</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
+          <div class="navbtns"><button class="viewtog ${ui.hideDone?'on':''}" data-act="hidedone" title="hide or show completed tasks">${ui.hideDone?'Show done':'Hide done'}</button><button class="viewtog ${ui.selMode?'on':''}" data-act="selmode" title="select several tasks and move them together">${ui.selMode?'✕ Select':'Select'}</button><button class="viewtog" data-go="weekplus" title="7-day strip view" aria-label="switch to Week plus strip view">⇄ Week+</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
         </div>
         ${carryBtn(wk,isPast)}
         ${carryNextBtn(wk)}
         <div class="weeklabel">Week <span>Mon–Fri</span></div>
         <div class="weekgrid">${weekRow}</div>
-        <div class="weeklabel">Weekend <span>floating · Sat–Sun · + Future · + next week${odCol?' · + not done':''}</span></div>
+        <div class="weeklabel">Weekend <span>floating · Sat–Sun · + Unscheduled · + next week${odCol?' · + not done':''}</span></div>
         <div class="weekgrid wkend ${odCol?'haslate':''}">${weekendRow}</div>
       </div>`;
   } else {
@@ -937,12 +971,12 @@ function renderWeek(){
       + [0,1,2,3,4].map(mkDp).join('')
       + `<button class="dp wkd ${ui.dayIdx==='W'?'sel':''}" data-day="W"><span class="d">W/e</span><span class="n">${nWknd||'·'}</span><span class="dots"></span></button>`
       + [5,6].map(mkDp).join('')
-      + `<button class="dp fut ${ui.dayIdx==='F'?'sel':''}" data-day="F"><span class="d">Fut</span><span class="n">∞</span><span class="dots"></span></button>`;
+      + `<button class="dp fut ${ui.dayIdx==='F'?'sel':''}" data-day="F"><span class="d">Uns</span><span class="n">∞</span><span class="dots"></span></button>`;
 
     view.innerHTML = `
       <div class="weekhead ${isPast?'past':''}">
         <div class="rng">${range} <small>${tag}</small></div>
-        <div class="navbtns"><button class="viewtog" data-go="weekplus" title="7-day strip view" aria-label="switch to Week plus strip view">⇄</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
+        <div class="navbtns"><button class="viewtog ${ui.hideDone?'on':''}" data-act="hidedone" title="hide or show completed">${ui.hideDone?'☑':'☐'}✓</button><button class="viewtog ${ui.selMode?'on':''}" data-act="selmode" title="select several and move together">${ui.selMode?'✕':'☰'}</button><button class="viewtog" data-go="weekplus" title="7-day strip view" aria-label="switch to Week plus strip view">⇄</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
       </div>
       ${carryBtn(wk,isPast)}
       ${carryNextBtn(wk)}
@@ -963,10 +997,10 @@ function renderWeekPlus(){
   const isThis=ui.weekKey===todayMonday, isPast=ui.weekKey<todayMonday;
   const tag=isThis?'this week':(isPast?'past':'ahead');
   const gymDot=(iso)=> iso<=todayISO ? `<button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>` : '';
-  const poolCol=`<div class="col fut wp-col"><div class="colhead"><span class="dw">w/c ${sd} ${MON[sm-1]}</span><span class="nn">Future</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
+  const poolCol=`<div class="col fut wp-col"><div class="colhead"><span class="dw">Unscheduled</span><span class="nn">w/c ${sd} ${MON[sm-1]}</span></div>${laneHTML(wk,'F','personal')}${laneHTML(wk,'F','work')}</div>`;
   const dayCol=(i)=>{ const d=wk.days[i]; const iso=addDays(ui.weekKey,i); const isToday=(isThis&&i===todayDayIdx());
     return `<div class="col wp-col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${gymDot(iso)}</div>${apptsBlock(iso)}${laneHTML(wk,i,'personal')}${laneHTML(wk,i,'work')}</div>`; };
-  const wkndCol=`<div class="col wkd wp-col"><div class="colhead"><span class="dw">Weekend</span><span class="nn">floating</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
+  const wkndCol=`<div class="col wkd wp-col"><div class="colhead"><span class="dw">Weekend</span><span class="nn">either day</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
   const nextCol=`<div class="col nxt wp-col"><div class="colhead"><span class="dw">Next week</span><span class="nn">w/c ${nd} ${MON[nm-1]}</span></div>${laneHTML(nwk,'F','personal')}${laneHTML(nwk,'F','work')}</div>`;
   const odCol=overdueColHTML('wp-col');
   const cols=[odCol, poolCol, dayCol(0),dayCol(1),dayCol(2),dayCol(3),dayCol(4), wkndCol, dayCol(5),dayCol(6), nextCol].join('');
@@ -974,7 +1008,7 @@ function renderWeekPlus(){
   view.innerHTML = wrap+`
     <div class="weekhead ${isLap()?'lap':''} ${isPast?'past':''}">
       <div class="rng">${range} <small>${tag} · Week+</small></div>
-      <div class="navbtns"><button class="viewtog" data-go="week" title="back to week view" aria-label="switch back to week view">⇄ Week</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
+      <div class="navbtns"><button class="viewtog ${ui.hideDone?'on':''}" data-act="hidedone" title="hide or show completed tasks">${ui.hideDone?'Show done':'Hide done'}</button><button class="viewtog ${ui.selMode?'on':''}" data-act="selmode" title="select several tasks and move them together">${ui.selMode?'✕ Select':'Select'}</button><button class="viewtog" data-go="week" title="back to week view" aria-label="switch back to week view">⇄ Week</button><button data-act="prevweek">${navArrow('l')}</button><button data-act="nextweek">${navArrow('r')}</button></div>
     </div>
     ${carryBtn(wk,isPast)}
     ${carryNextBtn(wk)}
@@ -999,7 +1033,7 @@ function dayViewHTML(wk){
     const items=pastUnfinishedAll();
     const rows=items.map(x=>taskRow(x.t,{w:x.wk.key,d:x.di},{tag:'w/c '+wcShort(x.wk.key)})).join('');
     return `<div class="dayhead"><div><div class="dow">Not done</div><div class="date">left in past weeks · tick here, or hold a task to move it into a day</div></div></div>
-      ${items.length?`<button class="carry soft" data-act="pullpools">⇪ Move all ${items.length} → this week's Future</button><div class="list latelist">${rows}</div>`:`<div class="empty"><div class="ic">✓</div><div class="h">Nothing left behind.</div><div class="s">Past weeks are clear.</div></div>`}`;
+      ${items.length?`<button class="carry soft" data-act="pullpools">⇪ Move all ${items.length} → this week's Unscheduled</button><div class="list latelist">${rows}</div>`:`<div class="empty"><div class="ic">✓</div><div class="h">Nothing left behind.</div><div class="s">Past weeks are clear.</div></div>`}`;
   }
   if(di==='W'){
     const p=sortTimed(wk.weekend.personal), w=sortTimed(wk.weekend.work);
@@ -1010,7 +1044,8 @@ function dayViewHTML(wk){
   }
   if(di==='F'){
     const p=sortTimed(wk.future.personal), w=sortTimed(wk.future.work);
-    return `<div class="dayhead"><div><div class="dow">Future</div><div class="date">carries across weeks</div></div></div>
+    /* v2.0 (E6): "carries across weeks" was actively wrong — each week has its own pool */
+    return `<div class="dayhead"><div><div class="dow">Unscheduled</div><div class="date">this week's holding pool — one per week</div></div></div>
       <div class="eyebrow p">Personal<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="F" data-k="personal">+ add</button><span class="ln"></span></div>${p.length?listHTML(p,{w:wk.key,d:'F',k:'personal'},{grip:true}):miniEmpty()}
       <div class="eyebrow w">Work<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="F" data-k="work">+ add</button><span class="ln"></span></div>${w.length?listHTML(w,{w:wk.key,d:'F',k:'work'},{grip:true}):miniEmpty()}`;
   }
@@ -1039,7 +1074,7 @@ function carryNextBtn(wk){
   if(wk.key!==todayMonday) return '';
   const n=unfinishedCount(wk); if(!n) return '';
   const nx=addDays(wk.key,7); const [ny,nm,nd]=nx.split('-').map(Number);
-  return `<button class="carry soft" data-act="carrynext">↪ Carry ${n} unfinished → w/c ${nd} ${MON[nm-1]} Future</button>`;
+  return `<button class="carry soft" data-act="carrynext">↪ Carry ${n} unfinished → w/c ${nd} ${MON[nm-1]} Unscheduled</button>`;
 }
 function navArrow(d){ return d==='l'?'<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>':'<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>'; }
 
@@ -1123,11 +1158,14 @@ function renderMore(){
     ${DB.inbox.length?`<div class="eyebrow">Inbox · ${DB.inbox.length}<button class="addmini" data-act="claude-triage">✶ sort with Claude</button><span class="ln"></span></div><div class="list">${DB.inbox.map((x,i)=>`<div class="t"><button class="check" data-act="inbox-done" data-i="${i}">${CHK}</button><span class="lab">${esc(x.label)}</span><button class="chev" data-act="inbox-del" data-i="${i}">✕</button></div>`).join('')}</div>`:''}
     <div class="eyebrow">Connections<span class="ln"></span></div>
     <div id="odbox">${renderConnectionsInner()}</div>
-    <div class="eyebrow">Recurring<button class="addmini" data-act="addrecur">+ add</button><span class="ln"></span></div>
+    <div class="eyebrow">Recurring<button class="addmini" data-act="addrecur">+ add</button><button class="addmini" data-act="recurapply" title="place missing instances into this week and the weeks already created">↻ apply to existing weeks</button><span class="ln"></span></div>
     <div class="list">${(DB.recur||[]).map((r,ri)=>{
       const fd=iso=>{ const p=(''+iso).split('-').map(Number); return p.length===3?(p[2]+' '+MON[p[1]-1]):iso; };
-      const pat = r.type==='interval' ? ('every '+r.every+' days · from '+fd(r.anchor)) : (r.day+' · weekly');
-      return `<div class="t ${r.lane==='work'?'kwork':''}"><span class="lab">${esc(r.label)} <span class="subdesc">${pat} · ${r.lane}${(r.subs&&r.subs.length)?' · '+r.subs.length+' steps':''}</span></span><span class="pill subs">↻ ${r.type==='interval'?r.every+'d':'wk'}</span><button class="chev" data-act="delrecur" data-ri="${ri}" title="remove rule" aria-label="remove recurring rule">✕</button></div>`;
+      /* v2.0 (E0): legacy rules store day as 0..6 and lane as kind — show them properly */
+      const dayName = typeof r.day==='number' ? (DOW[r.day]||'?') : r.day;
+      const laneName = recurLane(r)||'?';
+      const pat = r.type==='interval' ? ('every '+r.every+' days · from '+fd(r.anchor)) : (dayName+' · weekly');
+      return `<div class="t ${laneName==='work'?'kwork':''}"><span class="lab">${esc(r.label)} <span class="subdesc">${pat} · ${laneName}${(r.subs&&r.subs.length)?' · '+r.subs.length+' steps':''}</span></span><span class="pill subs">↻ ${r.type==='interval'?r.every+'d':'wk'}</span><button class="chev" data-act="delrecur" data-ri="${ri}" title="remove rule" aria-label="remove recurring rule">✕</button></div>`;
     }).join('')||'<div class="empty" style="padding:12px"><div class="s">No recurring tasks yet — add bins day, injections, anything on a cycle.</div></div>'}</div>
     ${isLap()?'</div>':''}`;
 }
@@ -1303,11 +1341,34 @@ function countTasksIn(db){
 function exportShape(){ return JSON.stringify({ weeks:DB.weeks, recur:DB.recur, inbox:DB.inbox, projects:DB.projects, shopping:DB.shopping, health:DB.health, gym:DB.gym||{}, savedAt:Date.now(), v:3 }); }
 
 /* ---- reconcile: READ-ONLY look at the cloud ---- */
+/* v2.0 (E0-A): the reconcile dialog compared TASK COUNTS ONLY. Re-planning a week moves
+   tasks between days without changing any count, so on 9 Aug the dialog showed
+   "Cloud 59 · This device 59", read as identical, and "Use cloud" replaced the finished
+   re-plan with a structurally older copy. It now compares content and timestamps. */
+function plannerIndexById(db){
+  const m=new Map();
+  Object.entries((db&&db.weeks)||{}).forEach(([wkey,wk])=>{
+    if(!wk || !Array.isArray(wk.days)) return;
+    ['personal','work'].forEach(k=>{
+      wk.days.forEach((d,i)=>{ (d&&Array.isArray(d[k])?d[k]:[]).forEach(t=>{ if(t&&t.id!=null) m.set(t.id,{loc:wkey+'/'+i+'/'+k,label:t.label,done:!!t.done}); }); });
+      ['future','weekend'].forEach(sec=>{ const arr=wk[sec]&&wk[sec][k]; if(Array.isArray(arr)) arr.forEach(t=>{ if(t&&t.id!=null) m.set(t.id,{loc:wkey+'/'+sec+'/'+k,label:t.label,done:!!t.done}); }); });
+    });
+  });
+  return m;
+}
+function diffPlanner(local, remote){
+  const A=plannerIndexById(local), B=plannerIndexById(remote);
+  let moved=0,renamed=0,ticked=0,onlyLocal=0,onlyCloud=0;
+  A.forEach((v,id)=>{ const w=B.get(id); if(!w){ onlyLocal++; return; } if(w.loc!==v.loc) moved++; if(w.label!==v.label) renamed++; if(w.done!==v.done) ticked++; });
+  B.forEach((v,id)=>{ if(!A.has(id)) onlyCloud++; });
+  return {moved,renamed,ticked,onlyLocal,onlyCloud, any:moved+renamed+ticked+onlyLocal+onlyCloud>0};
+}
 async function odReconcile(){
   const text=await gText(APPROOT+'/'+OD.file+':/content');
   if(text==null) return { kind:'empty' };
   let remote; try{ remote=JSON.parse(text); }catch(e){ return { kind:'corrupt' }; }
-  return { kind:'exists', remote, remoteText:text, remoteCount:countTasksIn(remote), localCount:countTasksIn(DB) };
+  return { kind:'exists', remote, remoteText:text, remoteCount:countTasksIn(remote), localCount:countTasksIn(DB),
+           remoteSavedAt:+remote.savedAt||0, localSavedAt:+DB.savedAt||0, diff:diffPlanner(DB,remote) };
 }
 function odPersistMeta(){ localStorage.setItem(OD.metaKey, JSON.stringify({ live:odState.live, account:odState.account, etag:odState.etag })); }
 
@@ -1409,16 +1470,29 @@ async function openReconcile(){
   if(res.kind==='empty'){ dlg.innerHTML=`<div class="dlg"><h3>Cloud is empty</h3><p>No planner file in your app folder yet. This device can seed it — nothing exists to overwrite.</p><div class="acts"><button class="cancel" data-x="c2">Not yet</button><button class="save" data-x="seed">Seed cloud from this device</button></div></div>`; dlg.querySelector('[data-x=c2]').addEventListener('click',closeDialog); dlg.querySelector('[data-x=seed]').addEventListener('click',async()=>{ closeDialog(); await odMakeLive(); }); return; }
   if(res.kind==='corrupt'){ dlg.innerHTML=`<div class="dlg"><h3>Cloud file unreadable</h3><p>The cloud file isn’t valid JSON. Nothing changed. Use a backup, or keep this device as the source.</p><div class="acts"><button class="save" data-x="ok2">OK</button></div></div>`; dlg.querySelector('[data-x=ok2]').addEventListener('click',closeDialog); return; }
   const rc=res.remoteCount, lc=res.localCount;
+  /* v2.0 (E0-A items 1+2): equal counts are NOT "identical". Show when each copy was
+     saved, flag the newer one, and say what actually differs, before any choice. */
+  const fmtSaved=ts=>{ if(!ts) return 'save time unknown'; const d=new Date(ts); return 'saved '+hhmm(ts)+' · '+d.getDate()+' '+MON[d.getMonth()]; };
+  const newer = res.remoteSavedAt===res.localSavedAt ? 'same' : (res.remoteSavedAt>res.localSavedAt?'cloud':'device');
+  const df=res.diff||{};
+  const bits=[];
+  if(df.moved) bits.push('<b>'+df.moved+'</b> on different days');
+  if(df.renamed) bits.push('<b>'+df.renamed+'</b> renamed');
+  if(df.ticked) bits.push('<b>'+df.ticked+'</b> ticked differently');
+  if(df.onlyLocal) bits.push('<b>'+df.onlyLocal+'</b> only on this device');
+  if(df.onlyCloud) bits.push('<b>'+df.onlyCloud+'</b> only in the cloud');
+  const diffLine = bits.length ? 'Differences: '+bits.join(' · ')+'.' : 'The two copies look identical in content.';
   dlg.innerHTML=`<div class="dlg"><h3>Two copies found</h3>
     <p>Nothing has changed yet — pick which becomes the source.</p>
     <div class="reccards">
-      <div class="recc"><div class="recc-h">☁️ Cloud</div><div class="recc-n">${rc.tasks}</div><div class="recc-s">tasks · ${rc.subs} sub-tasks</div></div>
-      <div class="recc"><div class="recc-h">📱 This device</div><div class="recc-n">${lc.tasks}</div><div class="recc-s">tasks · ${lc.subs} sub-tasks</div></div>
+      <div class="recc ${newer==='cloud'?'newer':''}"><div class="recc-h">☁️ Cloud${newer==='cloud'?' · <b>newer</b>':(newer==='device'?' · older':'')}</div><div class="recc-n">${rc.tasks}</div><div class="recc-s">tasks · ${rc.subs} sub-tasks<br>${fmtSaved(res.remoteSavedAt)}</div></div>
+      <div class="recc ${newer==='device'?'newer':''}"><div class="recc-h">📱 This device${newer==='device'?' · <b>newer</b>':(newer==='cloud'?' · older':'')}</div><div class="recc-n">${lc.tasks}</div><div class="recc-s">tasks · ${lc.subs} sub-tasks<br>${fmtSaved(res.localSavedAt)}</div></div>
     </div>
+    <p class="conn-d" style="margin:8px 0 0">${diffLine}</p>
     <div class="acts" style="flex-wrap:wrap">
       <button class="cancel" data-x="cc">Cancel</button>
-      <button class="save" data-x="usecloud">Use cloud copy</button>
-      <button class="save" data-x="usedevice" style="background:var(--w)">Keep this device</button>
+      <button class="save" data-x="usecloud">Use cloud copy${newer==='device'?' (OLDER)':(newer==='cloud'?' (newer)':'')}</button>
+      <button class="save" data-x="usedevice" style="background:var(--w)">Keep this device${newer==='cloud'?' (OLDER)':(newer==='device'?' (newer)':'')}</button>
     </div>
     <div class="conn-d" style="margin-top:10px">“Use cloud” replaces this device’s copy with the cloud’s ${rc.tasks} tasks — if the cloud holds fewer than this device, you’ll be warned before anything is discarded. Nothing writes back until you tap <b>Make live</b>.</div></div>`;
   dlg.querySelector('[data-x=cc]').addEventListener('click',closeDialog);
@@ -1513,7 +1587,9 @@ function syncLabel(){
   if(odState.error) return { dot:'#b78a3a', txt:'Sync issue · More' };
   if(odState.syncing) return { dot:'#557785', txt:'Syncing…' };
   if(odState.connected&&odState.live) return { dot:'#4e8a5a', txt:'Synced'+(odState.lastSync?' · '+hhmm(odState.lastSync):'') };
-  if(odState.connected) return { dot:'#b78a3a', txt:'Connected · read-only' };
+  /* v2.0 (E0-A item 4): read-only used to look calm; it meant NOTHING was reaching the
+     cloud, and it read as if it were about the calendar. Loud, and says what to do. */
+  if(odState.connected) return { dot:'#b3402a', txt:'⚠ NOT SAVING to OneDrive · fix in More' };
   return { dot:'#b6ab98', txt:'Local only' };
 }
 function updateSyncBadge(){ const el=document.querySelector('.synced'); if(el){ const s=syncLabel(); el.innerHTML='<span class="d" style="background:'+s.dot+'"></span>'+s.txt; } if(ui.view==='more'){ const c=document.getElementById('odbox'); if(c) c.innerHTML=renderConnectionsInner(); } }
@@ -1581,11 +1657,30 @@ function findTask(el){
 
 document.addEventListener('click', e=>{
   const goBtn=e.target.closest('[data-go]'); if(goBtn){ go(goBtn.dataset.go); return; }
+  /* v2.0 (E4): in select mode a tap on a task row toggles selection instead of its
+     normal action. The move button still opens the sheet for a single task. */
+  if(ui.selMode){
+    const row=e.target.closest('.t[data-id]');
+    if(row && row.closest('#view') && !e.target.closest('[data-act="movesheet"]')){
+      const id=row.dataset.id;
+      if(ui.sel.has(id)) ui.sel.delete(id); else ui.sel.add(id);
+      row.classList.toggle('seled', ui.sel.has(id));
+      updateSelbar();
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
+  }
   const a=e.target.closest('[data-act]'); if(!a) return;
   const act=a.dataset.act;
 
   // global actions
   if(act==='mvd'){ ui.mvd=!ui.mvd; ui.fullDay=false; render(); return; }
+  if(act==='hidedone'){ ui.hideDone=!ui.hideDone; try{ localStorage.setItem('wp:ui:hidedone', ui.hideDone?'1':'0'); }catch(err){} render(); return; }
+  if(act==='selmode'){ ui.selMode=!ui.selMode; if(!ui.selMode) ui.sel.clear(); render(); return; }
+  if(act==='selclear'){ ui.sel.clear(); render(); return; }
+  if(act==='seldone'){ ui.selMode=false; ui.sel.clear(); render(); return; }
+  if(act==='bulkmove'){ if(ui.sel.size) openBulkMoveSheet(); return; }
+  if(act==='recurapply'){ if(!syncSettledForWrite()||odState.pulling){ flashToast('Still syncing with OneDrive — try again in a moment'); return; } const n=recurCatchupPreview(); if(!n){ flashToast('Nothing to add — rules already placed'); return; } applyRecurringFrom(todayMonday); saveDB(); renderMore(); flashToast('Added '+n+' repeating task'+(n!==1?'s':'')+' from this week forward'); return; }
   if(act==='fullday'){ ui.fullDay=!ui.fullDay; renderToday(); return; }
   if(act==='braindump'){ openBrainDump(); return; }
   if(act==='paste'){ openPaste(); return; }
@@ -1632,6 +1727,7 @@ document.addEventListener('click', e=>{
   const {t}=ctx;
   if(act==='check'){ toggleDone(ctx, a); return; }
   if(act==='toggle'){ t.open=!t.open; saveDB(); rerenderInPlace(); return; }
+  if(act==='movesheet'){ openMoveSheet(ctx); return; }   // v2.0 (E5)
   if(act==='edit'){ openEdit(ctx); return; }
   if(act==='subcheck'){ const j=+a.closest('[data-sub]').dataset.sub; t.subs[j].done=!t.subs[j].done; if(t.subs[j].done) burstAt(a); saveDB(); rerenderInPlace(); return; }
   if(act==='delsub'){ const j=+a.closest('[data-sub]').dataset.sub; t.subs.splice(j,1); saveDB(); rerenderInPlace(); return; }
@@ -1762,7 +1858,7 @@ function doCarryNext(){
   const from=curWeek(); const nx=addDays(from.key,7);
   const n=unfinishedCount(from); if(!n) return;
   const [ny,nm,nd]=nx.split('-').map(Number);
-  openDialog(`<h3>Carry to next week?</h3><p><b>${n}</b> unfinished task${n!==1?'s':''} will move to the <b>w/c ${nd} ${MON[nm-1]}</b> Future list for Sunday sorting. Ticked tasks stay put. Nothing is deleted.</p>
+  openDialog(`<h3>Carry to next week?</h3><p><b>${n}</b> unfinished task${n!==1?'s':''} will move to the <b>w/c ${nd} ${MON[nm-1]}</b> Unscheduled list for Sunday sorting. Ticked tasks stay put. Nothing is deleted.</p>
     <div class="acts"><button class="cancel" data-x="no">Cancel</button><button class="save" data-x="yes">Carry ${n} forward</button></div>`);
   dlg.querySelector('[data-x=no]').addEventListener('click',closeDialog);
   dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{
@@ -1807,7 +1903,7 @@ function doPullPools(){
   const s=pastUnfinishedAll(); if(!s.length) return;
   const oldest=s.map(x=>x.wk.key).sort()[0];
   openConfirm('Move all overdue in?',
-    `<b>${s.length}</b> unfinished task${s.length!==1?'s':''} from past weeks (back to w/c ${wcShort(oldest)}) will move into this week's Future list for sorting. Nothing is deleted, ticked tasks stay where they are.`,
+    `<b>${s.length}</b> unfinished task${s.length!==1?'s':''} from past weeks (back to w/c ${wcShort(oldest)}) will move into this week's Unscheduled list for sorting. Nothing is deleted, ticked tasks stay where they are.`,
     `Move ${s.length} in`, ()=>{
       const to=ensureWeek(ui.weekKey>=todayMonday?ui.weekKey:todayMonday);
       s.forEach(({wk,di,kind,t})=>{ const arr=colArr(wk,di,kind); const i=arr.indexOf(t); if(i>=0){ arr.splice(i,1); t.defers=(t.defers||0)+1; to.future[kind].push(t); } });
@@ -1840,7 +1936,7 @@ function openEdit(ctx){
     + (inToday?'':`<option value="T">→ Today</option>`)
     + bwk.days.map((d,i)=>`<option value="${i}" ${(!fromPast&&di===i)?'selected':''}>${d.dow} ${d.n}</option>`).join('')
     +`<option value="W" ${(!fromPast&&di==='W')?'selected':''}>Weekend (floating)</option>`
-    +`<option value="F" ${(!fromPast&&di==='F')?'selected':''}>Future</option>`
+    +`<option value="F" ${(!fromPast&&di==='F')?'selected':''}>Unscheduled</option>`
     +`<option value="N">→ Next week · w/c ${nxd} ${MON[nxm-1]}</option>`;
   const modes=[['','Off'],['prompt','Prompt'],['workflow','Workflow'],['cowork','Cowork'],['code','Code']];
   openDialog(`<h3>Edit task</h3>
@@ -1923,7 +2019,7 @@ function openAddSub(ctx){
   dlg.querySelector('#f-sub').addEventListener('keydown',e=>{ if(e.key==='Enter')done(); });
 }
 function openAddTask(wKey,di,kind){
-  const wk=DB.weeks[wKey]; const where = di==='F'?'Future':(di==='W'?'the Weekend lane':`${DOWFULL[di]||''}`);
+  const wk=DB.weeks[wKey]; const where = di==='F'?'Unscheduled':(di==='W'?'the Weekend lane':`${DOWFULL[di]||''}`);
   openDialog(`<h3>Add ${kind} task</h3><p>Lands in ${where}.</p>
     <input id="f-new" placeholder="What needs doing?" enterkeyhint="done" />
     <div class="acts"><button class="cancel" data-x="cancel">Cancel</button><button class="save" data-x="save">Add</button></div>`);
@@ -1962,11 +2058,15 @@ function openAddRecur(){
     saveDB(); closeDialog(); renderMore(); flashToast('Recurring added — placed from this week forward');
   });
 }
-function moveTask(ctx, target, baseKey){
+/* v2.0 (E4): the mutation half of moveTask, shared with bulk-move. Returns true if the
+   task actually moved. Semantics byte-for-byte with v1.2: 'T' resolves at execution so a
+   sheet held open past midnight still means today; forward moves count a defer; a move
+   never changes lane. Callers are user actions that end in saveDB(). */
+function applyMove(ctx, target, baseKey){
   const {t}=ctx;
   if(target==='T') target = todayISO;   // resolved now, so a sheet held open past midnight still means today
   const base = baseKey || ctx.wk.key;   // for overdue (past-week) tasks the move targets the CURRENT week, not the week they were left in
-  const pos=ctx.arr.indexOf(t); if(pos<0){ closeDialog(); return; }
+  const pos=ctx.arr.indexOf(t); if(pos<0) return false;
   if(target==='N'){
     ctx.arr.splice(pos,1);
     const nwk=ensureWeek(addDays(base,7)); t.defers=(t.defers||0)+1; nwk.future[t.kind].push(t);
@@ -1978,13 +2078,130 @@ function moveTask(ctx, target, baseKey){
     wk2.days[daysBetween(wkKey,target)][t.kind].push(t);
   } else {
     const di2=(target==='F'||target==='W')?target:Number(target);
-    if(base===ctx.wk.key && di2===ctx.di){ closeDialog(); return; }
+    if(base===ctx.wk.key && di2===ctx.di) return false;
     ctx.arr.splice(pos,1);
     const bwk=ensureWeek(base);
     if(base>ctx.wk.key) t.defers=(t.defers||0)+1;
     colArr(bwk,di2,t.kind).push(t);
   }
+  return true;
+}
+function moveTask(ctx, target, baseKey){
+  const {t}=ctx;
+  if(!applyMove(ctx,target,baseKey)){ closeDialog(); return; }
   saveDB(); closeDialog(); render(); flashToast('Moved · '+t.label.slice(0,40));
+}
+function findTaskById(id){
+  for(const wk of Object.values(DB.weeks)){
+    if(!wk || !Array.isArray(wk.days)) continue;
+    for(const kind of ['personal','work']){
+      for(let di=0; di<7; di++){
+        const arr=wk.days[di]&&wk.days[di][kind]; if(!Array.isArray(arr)) continue;
+        const i=arr.findIndex(t=>t&&t.id===id); if(i>=0) return {t:arr[i],wk,di,arr};
+      }
+      for(const dd of ['F','W']){
+        const arr=colArr(wk,dd,kind); if(!Array.isArray(arr)) continue;
+        const i=arr.findIndex(t=>t&&t.id===id); if(i>=0) return {t:arr[i],wk,di:dd,arr};
+      }
+    }
+  }
+  return null;
+}
+function updateSelbar(){
+  let el=document.getElementById('selbar');
+  if(!ui.selMode || ui.sel.size===0){ if(el) el.remove(); return; }
+  if(!el){ el=document.createElement('div'); el.id='selbar'; document.body.appendChild(el); }
+  el.innerHTML=`<b>${ui.sel.size} selected</b>
+    <button data-act="bulkmove" class="save">Move to…</button>
+    <button data-act="selclear" class="cancel">Clear</button>
+    <button data-act="seldone" class="cancel">Done</button>`;
+}
+function openBulkMoveSheet(){
+  const base = (ui.weekKey && ui.weekKey>=todayMonday) ? ui.weekKey : todayMonday;
+  const bwk=ensureWeek(base);
+  const nx=addDays(base,7); const [,bnm,bnd]=nx.split('-').map(Number);
+  const chips=[`<button type="button" class="dchip todc" data-mv="T">Today</button>`];
+  bwk.days.forEach((d,i)=>{ chips.push(`<button type="button" class="dchip" data-mv="${i}">${d.dow} ${d.n}</button>`); });
+  chips.push(`<button type="button" class="dchip wkdc" data-mv="W">Weekend</button>`);
+  chips.push(`<button type="button" class="dchip futc" data-mv="F">Unscheduled</button>`);
+  chips.push(`<button type="button" class="dchip nxtc" data-mv="N">Next week · w/c ${bnd} ${MON[bnm-1]}</button>`);
+  openDialog(`<h3>Move ${ui.sel.size} task${ui.sel.size!==1?'s':''}</h3>
+    <p class="subdesc" style="margin:2px 0 8px">They keep their Personal / Work lane. Forward moves count as a defer, same as moving one.</p>
+    <div class="chiprow wrap" id="mv-chips">${chips.join('')}</div>
+    <label>Or pick a date</label>
+    <div class="frow"><input id="mv-date" type="date" style="flex:1" /><button type="button" class="save" id="mv-go" style="flex:0 0 auto">Go</button></div>
+    <div class="acts"><button class="cancel" data-x="c">Cancel</button></div>`);
+  const go=(target)=>{
+    const ids=[...ui.sel]; let moved=0;
+    ids.forEach(id=>{ const c=findTaskById(id); if(c && applyMove(c,target,base)) moved++; });
+    ui.sel.clear(); ui.selMode=false;
+    saveDB(); closeDialog(); render(); flashToast('Moved '+moved+' task'+(moved!==1?'s':''));
+  };
+  dlg.querySelector('[data-x=c]').addEventListener('click',closeDialog);
+  dlg.querySelector('#mv-chips').addEventListener('click',e=>{ const b=e.target.closest('[data-mv]'); if(b) go(b.dataset.mv); });
+  dlg.querySelector('#mv-go').addEventListener('click',()=>{ const v=dlg.querySelector('#mv-date').value; if(/^\d{4}-\d{2}-\d{2}$/.test(v)) go(v); });
+}
+/* v2.0 (E0, data half): materialising the rules into ALREADY-EXISTING weeks is a user
+   action that ends in saveDB() — never done at boot or render (Part D). */
+/* Counts exactly what applyRecurringFrom(todayMonday) would ADD — weekly AND interval
+   rules — so the number shown to Tom matches what accepting actually creates. */
+function recurCatchupPreview(){
+  let n=0;
+  Object.keys(DB.weeks).filter(k=>k>=todayMonday).forEach(k=>{
+    const wk=DB.weeks[k]; if(!wk||!Array.isArray(wk.days)) return;
+    (DB.recur||[]).forEach(r=>{
+      const lane=recurLane(r); if(!lane) return;
+      if(r.type==='interval'){
+        const every=Math.max(1,+r.every||1); const anchor=r.anchor;
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(anchor||'')) return;
+        for(let i=0;i<7;i++){
+          const iso=addDays(k,i);
+          if(iso<anchor||iso<todayISO) continue;
+          if(daysBetween(anchor,iso)%every!==0) continue;
+          const arr=wk.days[i]&&wk.days[i][lane]; if(!arr) continue;
+          if(!arr.some(t=>t.label===r.label)) n++;
+        }
+        return;
+      }
+      const di=recurDayIdx(r); if(di<0) return;
+      if(addDays(k,di)<todayISO) return;
+      const arr=wk.days[di]&&wk.days[di][lane]; if(!arr) return;
+      if(!arr.some(t=>t.label===r.label)) n++;
+    });
+  });
+  return n;
+}
+/* True only when it is SAFE to bump savedAt: either no live cloud (a local-only device's
+   push is guarded by If-Match anyway), or the initial pull has already settled/adopted, or
+   it has errored (a device that can't reach the cloud can't overwrite it until it
+   reconnects, at which point If-Match arbitrates). The dangerous window this guards against:
+   accepting the catch-up while the init pull is still IN FLIGHT — that would materialise
+   onto a copy that is about to be replaced by a newer cloud copy, then win the timestamp
+   race on the next push. That is the 9 Aug loss shape, and v2.0 must not reintroduce it. */
+function syncSettledForWrite(){
+  if(!(odState.connected && odState.live)) return true;   // local-only: If-Match still guards every push
+  if(odState.error) return true;                          // cloud unreachable: cannot overwrite until reconnect
+  return odState.lastPull>0 || odState.lastSync>0;        // a pull adopted, or a push already succeeded
+}
+let _recurOfferTries=0;
+function maybeOfferRecurCatchup(){
+  try{
+    if(localStorage.getItem('wp:recurfix:v20')) return;
+    const legacy=(DB.recur||[]).some(r=>typeof r.day==='number' && (r.kind==='work'||r.kind==='personal'));
+    if(!legacy){ localStorage.setItem('wp:recurfix:v20','1'); return; }
+    // WAIT for the initial cloud pull to settle before offering — see syncSettledForWrite.
+    if(!syncSettledForWrite() || odState.pulling){ if(_recurOfferTries++ < 25){ setTimeout(maybeOfferRecurCatchup, 1500); } return; }
+    if(dlg && dlg.open){ setTimeout(maybeOfferRecurCatchup, 2000); return; }   // never interrupt; retry
+    const n=recurCatchupPreview();
+    if(!n){ localStorage.setItem('wp:recurfix:v20','1'); return; }
+    const names=[...new Set((DB.recur||[]).map(r=>r.label))].join(' · ');
+    openDialog(`<h3>Your repeating tasks were switched off</h3>
+      <p>The ${(DB.recur||[]).length} repeating rules in your planner (${esc(names)}) were stored in an older format and have never actually created a task. That is now fixed — they fire whenever a new week is created.</p>
+      <p><b>${n}</b> missed instance${n!==1?'s':''} can be added to this week and the weeks already set up. Days already gone are skipped. If a rule is a leftover you don't want — the “Pin Test” ones look like it — remove it first in More → Recurring, then run this from the same place.</p>
+      <div class="acts"><button class="cancel" data-x="later">Not now</button><button class="save" data-x="apply">Add the ${n} now</button></div>`);
+    dlg.querySelector('[data-x=later]').addEventListener('click',()=>{ try{ localStorage.setItem('wp:recurfix:v20','1'); }catch(e){} closeDialog(); flashToast('Run it any time: More → Recurring → apply'); });
+    dlg.querySelector('[data-x=apply]').addEventListener('click',()=>{ if(!syncSettledForWrite()||odState.pulling){ flashToast('Still syncing — try again in a moment'); return; } try{ localStorage.setItem('wp:recurfix:v20','1'); }catch(e){} applyRecurringFrom(todayMonday); saveDB(); closeDialog(); render(); flashToast('Repeating tasks added from this week forward'); });
+  }catch(e){}
 }
 function moveBaseFor(wk){ return (wk.key<todayMonday) ? ((ui.weekKey&&ui.weekKey>=todayMonday)?ui.weekKey:todayMonday) : wk.key; }
 function openMoveSheet(ctx){
@@ -2004,7 +2221,7 @@ function openMoveSheet(ctx){
   const skipDup = !inToday && base===todayMonday;   // today already has its own chip; don't offer the same day twice
   bwk.days.forEach((d,i)=>{ if((fromPast || i!==di) && !(skipDup && i===todayDayIdx())) chips.push(`<button type="button" class="dchip" data-mv="${i}">${d.dow} ${d.n}</button>`); });
   if(fromPast || di!=='W') chips.push(`<button type="button" class="dchip wkdc" data-mv="W">Weekend</button>`);
-  if(fromPast || di!=='F') chips.push(`<button type="button" class="dchip futc" data-mv="F">Future</button>`);
+  if(fromPast || di!=='F') chips.push(`<button type="button" class="dchip futc" data-mv="F">Unscheduled</button>`);
   chips.push(`<button type="button" class="dchip nxtc" data-mv="N">Next week · w/c ${nd2} ${MON[nm2-1]}</button>`);
   openDialog(`<h3>Move task</h3><p style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0 8px">${esc(t.label)}${fromPast?` <span class="subdesc">· from w/c ${wcShort(wk.key)} → this week</span>`:''}</p>
     <div class="chiprow wrap" id="mv-chips">${chips.join('')}</div>
@@ -2084,7 +2301,7 @@ function exportExcel(){
     });
   });
   if(wk.weekend) ['personal','work'].forEach(kind=>{ sortTimed(wk.weekend[kind]).forEach(t=>{ rows+=`<tr><td>Weekend</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map(s=>s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
-  ['personal','work'].forEach(kind=>{ sortTimed(wk.future[kind]).forEach(t=>{ rows+=`<tr><td>Future</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map(s=>s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
+  ['personal','work'].forEach(kind=>{ sortTimed(wk.future[kind]).forEach(t=>{ rows+=`<tr><td>Unscheduled</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map(s=>s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
   const [sy,sm,sd]=ui.weekKey.split('-').map(Number);
   const head=`<table border="1" style="border-collapse:collapse;font-family:Arial;font-size:11pt"><tr><td colspan="6" style="background:#bd5f37;color:#fff;font-size:15pt;font-weight:bold;padding:8px">Weekly Planner — w/c ${sd} ${MON[sm-1]} ${sy}</td></tr><tr style="background:#2c2722;color:#fff;font-weight:bold"><td>Day</td><td>Lane</td><td>Time</td><td>Task</td><td>Sub-tasks</td><td>✓</td></tr>`;
   download('weekly-planner-'+ui.weekKey+'.xls','\ufeff'+head+rows+'</table>','application/vnd.ms-excel');
@@ -2235,7 +2452,7 @@ function syncAddbar(){
   const inp=document.getElementById('newtask');
   if(!inp) return;
   if(ui.view==='today'){ inp.placeholder='Add to today…'; }
-  else if(ui.view==='week'||ui.view==='weekplus'){ const wk=curWeek(); const where= ui.dayIdx==='F'?'Future':(ui.dayIdx==='W'?'Weekend':(ui.dayIdx==='L'?'today':(wk.days[ui.dayIdx]?wk.days[ui.dayIdx].dow:''))); inp.placeholder='Add to '+where+'…'; }
+  else if(ui.view==='week'||ui.view==='weekplus'){ const wk=curWeek(); const where= ui.dayIdx==='F'?'Unscheduled':(ui.dayIdx==='W'?'Weekend':(ui.dayIdx==='L'?'today':(wk.days[ui.dayIdx]?wk.days[ui.dayIdx].dow:''))); inp.placeholder='Add to '+where+'…'; }
 }
 
 /* ---------- v1.2 (E3): date rollover on a page left open ----------
@@ -2294,7 +2511,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v1.2';
+const APP_VERSION='v2.0';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -2610,7 +2827,7 @@ function remindOverdue(t){ return t.remind && !t.done && new Date(t.remind)<=new
 function remindPill(t){ if(!t||!t.remind||t.done) return ''; return `<span class="pill remind ${remindOverdue(t)?'over':''}">⏰ ${fmtRemind(t.remind)}</span>`; }
 function toLocalISO(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function getProject(pid){ return (DB.projects||[]).find(p=>p.id===pid); }
-function allProjectTasks(pid){ const out=[]; Object.keys(DB.weeks).sort().forEach(wkk=>{ const wk=DB.weeks[wkk]; if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di,kind:k,where:`${d.dow} ${d.n} ${d.month}`}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'F',kind:k,where:'Future'}); })); if(wk.weekend){ ['personal','work'].forEach(k=>wk.weekend[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'W',kind:k,where:'Weekend'}); })); } }); return out; }
+function allProjectTasks(pid){ const out=[]; Object.keys(DB.weeks).sort().forEach(wkk=>{ const wk=DB.weeks[wkk]; if(!wk||!Array.isArray(wk.days)||!wk.future) return; wk.days.forEach((d,di)=>['personal','work'].forEach(k=>d[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di,kind:k,where:`${d.dow} ${d.n} ${d.month}`}); }))); ['personal','work'].forEach(k=>wk.future[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'F',kind:k,where:'Unscheduled'}); })); if(wk.weekend){ ['personal','work'].forEach(k=>wk.weekend[k].forEach(t=>{ if(t.projectId===pid)out.push({t,wk,di:'W',kind:k,where:'Weekend'}); })); } }); return out; }
 function projectProgress(pid){ const ts=allProjectTasks(pid); const done=ts.filter(x=>x.t.done).length; return {done,total:ts.length,pct:ts.length?Math.round(done/ts.length*100):0,tasks:ts}; }
 function nextProjectStep(pid){ return allProjectTasks(pid).filter(x=>!x.t.done)[0]||null; }
 function dueCountdown(due){ const days=Math.round((new Date(due)-new Date())/86400000); if(days<0)return 'overdue'; if(days===0)return 'due today'; if(days<14)return days+' days left'; if(days<70)return Math.round(days/7)+' weeks left'; return Math.round(days/30)+' months left'; }
@@ -2741,6 +2958,7 @@ DB=loadDB();
 try{ loadCalCache(); }catch(e){}
 render();
 try{ initOneDrive(); }catch(e){}
+setTimeout(maybeOfferRecurCatchup, 900);   // v2.0 (E0): one-time offer, user decides, More has the same action
 try{ refreshHealth(); }catch(e){}
 watchLayout();
 watchDate();
