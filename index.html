@@ -622,8 +622,9 @@ function migrate(db){
     ['personal','work'].forEach(k=>{ if(!Array.isArray(wk.weekend[k])) wk.weekend[k]=[]; wk.weekend[k].forEach(fix); });
   });
   if(!db.projects.length) installDefaultProjects(db);
+  if(!Number.isInteger(db.rev)) db.rev = 1;   // v2.1: seed a revision on legacy data (no rev field)
 }
-function saveDB(){ try{ DB.savedAt=Date.now(); DB._uid=UID; localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){} flashSaved(); scheduleSync(); }
+function saveDB(){ try{ DB.savedAt=Date.now(); DB.rev=(Number.isInteger(DB.rev)?DB.rev:0)+1; DB._uid=UID; localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){} flashSaved(); scheduleSync(); }   // v2.1: rev bumps on every REAL (user-action) save
 
 /* v1.2 (E3): the date is recomputed, not frozen at load. A tab left open past
    midnight used to keep treating yesterday as today — wrong day highlighted, gym
@@ -1158,6 +1159,7 @@ function renderMore(){
     ${DB.inbox.length?`<div class="eyebrow">Inbox · ${DB.inbox.length}<button class="addmini" data-act="claude-triage">✶ sort with Claude</button><span class="ln"></span></div><div class="list">${DB.inbox.map((x,i)=>`<div class="t"><button class="check" data-act="inbox-done" data-i="${i}">${CHK}</button><span class="lab">${esc(x.label)}</span><button class="chev" data-act="inbox-del" data-i="${i}">✕</button></div>`).join('')}</div>`:''}
     <div class="eyebrow">Connections<span class="ln"></span></div>
     <div id="odbox">${renderConnectionsInner()}</div>
+    ${renderSyncLog()}
     <div class="eyebrow">Recurring<button class="addmini" data-act="addrecur">+ add</button><button class="addmini" data-act="recurapply" title="place missing instances into this week and the weeks already created">↻ apply to existing weeks</button><span class="ln"></span></div>
     <div class="list">${(DB.recur||[]).map((r,ri)=>{
       const fd=iso=>{ const p=(''+iso).split('-').map(Number); return p.length===3?(p[2]+' '+MON[p[1]-1]):iso; };
@@ -1186,7 +1188,7 @@ const OD = {
 };
 (function(){ let r=location.origin+location.pathname; r=r.replace(/index\.html?$/i,''); OD.redirect=r; })();
 const DEPLOY_OK = /github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
-const odState = { connected:false, account:'', live:false, syncing:false, pulling:false, lastSync:0, lastPull:0, etag:null, error:null, backedUp:'', expired:false };
+const odState = { connected:false, account:'', live:false, syncing:false, pulling:false, lastSync:0, lastPull:0, etag:null, error:null, backedUp:'', expired:false, baseRev:null };  // v2.1: revision this device last adopted/pushed
 const hhmm = ts=>{ const d=new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); };
 
 /* ---- PKCE helpers (Web Crypto) ---- */
@@ -1338,7 +1340,7 @@ function countTasksIn(db){
   if(db&&db.future){ walk(db.future.personal); walk(db.future.work); }
   return { tasks, subs };
 }
-function exportShape(){ return JSON.stringify({ weeks:DB.weeks, recur:DB.recur, inbox:DB.inbox, projects:DB.projects, shopping:DB.shopping, health:DB.health, gym:DB.gym||{}, savedAt:Date.now(), v:3 }); }
+function exportShape(){ return JSON.stringify({ weeks:DB.weeks, recur:DB.recur, inbox:DB.inbox, projects:DB.projects, shopping:DB.shopping, health:DB.health, gym:DB.gym||{}, savedAt:Date.now(), rev:(Number.isInteger(DB.rev)?DB.rev:1), pushedBy:deviceId(), v:3 }); }   // v2.1: carry rev + device id
 
 /* ---- reconcile: READ-ONLY look at the cloud ---- */
 /* v2.0 (E0-A): the reconcile dialog compared TASK COUNTS ONLY. Re-planning a week moves
@@ -1363,6 +1365,59 @@ function diffPlanner(local, remote){
   B.forEach((v,id)=>{ if(!A.has(id)) onlyCloud++; });
   return {moved,renamed,ticked,onlyLocal,onlyCloud, any:moved+renamed+ticked+onlyLocal+onlyCloud>0};
 }
+/* ===================== v2.1 — FAULT 2 sync hardening =====================
+   FAULT 2: a stale device silently overwrote the cloud with no user action.
+   Root cause (two parts, both fixed here):
+     (a) an unattended write — the Fitbit refresh's saveDB() — bumped savedAt, and
+     (b) savedAt was the SOLE arbiter, so on a 412 the stale copy re-pushed with
+         If-Match:null and won on wall-clock alone.
+   Fix: a monotonic revision + per-device id. An older BASE revision can never win,
+   whatever its clock says. Unattended writes are local-only. Every push/pull is logged. */
+
+// per-device id, in localStorage, NEVER in DB (so it does not itself sync)
+function deviceId(){ let d=null; try{ d=localStorage.getItem('wp:od:deviceid'); }catch(e){} if(!d){ d='d'+Math.random().toString(36).slice(2,10); try{ localStorage.setItem('wp:od:deviceid', d); }catch(e){} } return d; }
+
+// tasks sitting on an actual weekday (not the pool/weekend) — a "revert to pool" shows here
+function datedCount(db){ let n=0; for(const wk of Object.values((db&&db.weeks)||{})){ if(!wk||!Array.isArray(wk.days)) continue; wk.days.forEach(d=>['personal','work'].forEach(k=>{ if(Array.isArray(d[k])) n+=d[k].length; })); } return n; }
+
+// ring log — last 60 push/pull events, localStorage only, surfaced in More
+function odLog(dir, info){ try{ const L=JSON.parse(localStorage.getItem('wp:od:log')||'[]'); L.push(Object.assign({t:Date.now(), dir, dev:deviceId()}, info||{})); while(L.length>60) L.shift(); localStorage.setItem('wp:od:log', JSON.stringify(L)); }catch(e){} }
+function odLogRead(){ try{ return JSON.parse(localStorage.getItem('wp:od:log')||'[]'); }catch(e){ return []; } }
+
+/* THE push arbiter. NEVER returns 'takeover' when the cloud has advanced beyond the
+   revision this device based its copy on. savedAt is never consulted. */
+function decidePushConflict(baseRev, remote, diff){
+  const rRev = Number.isInteger(remote && remote.rev) ? remote.rev : null;
+  const bRev = Number.isInteger(baseRev) ? baseRev : null;
+  if(rRev!=null && bRev!=null && rRev<=bRev) return 'takeover';   // cloud NOT ahead of our base — 412 is a stale etag, re-push with the FRESH etag
+  if(diff && !diff.any) return 'adopt';                            // identical content — take cloud, lose nothing
+  if(diff && diff.onlyLocal===0 && diff.moved===0 && diff.renamed===0 && diff.ticked===0) return 'adopt'; // cloud is a superset of us — adopting loses nothing
+  return 'reconcile';                                              // genuine divergence, or rev unknown — never overwrite silently
+}
+/* pull-side twin: may we silently adopt the remote? Only when it genuinely advanced past
+   our base AND we would lose nothing. savedAt is never the deciding factor. */
+function remoteIsSafelyNewer(baseRev, remote, diff){
+  const rRev = Number.isInteger(remote && remote.rev) ? remote.rev : null;
+  const bRev = Number.isInteger(baseRev) ? baseRev : null;
+  if(rRev==null || bRev==null) return false;             // rev unknown → never silently adopt
+  if(rRev<=bRev) return false;                            // cloud not ahead of our base
+  return !!(diff && diff.onlyLocal===0 && diff.moved===0 && diff.renamed===0 && diff.ticked===0);
+}
+/* persist locally WITHOUT bumping savedAt/rev and WITHOUT scheduling a push. For unattended
+   writes (Fitbit): the data is kept, this device never becomes "newest", never auto-pushes. */
+function saveLocalOnly(){ try{ DB._uid=UID; localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){} }
+/* adopt a remote copy into this device (shared by pull and by an adopt-on-push-conflict). */
+function adoptRemote(remote, etag){
+  migrate(remote);
+  DB.weeks=remote.weeks; DB.recur=remote.recur||DB.recur; if(remote.projects)DB.projects=remote.projects; if(remote.inbox)DB.inbox=remote.inbox; if(remote.shopping)DB.shopping=remote.shopping; mergeHealth(remote.health); if(remote.gym)DB.gym=remote.gym;
+  DB.savedAt=+remote.savedAt||DB.savedAt;
+  DB.rev = Number.isInteger(remote.rev) ? remote.rev : (Number.isInteger(DB.rev)?DB.rev:1);
+  reseedUID(DB);
+  odState.etag=etag||odState.etag; odState.baseRev=DB.rev; odPersistMeta();
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({},DB,{_uid:UID}))); }catch(e){}
+  ui.weekKey=null; render();
+  odLog('pull-adopt', {rev:DB.rev, tasks:countTasksIn(DB).tasks, dated:datedCount(DB)});
+}
 async function odReconcile(){
   const text=await gText(APPROOT+'/'+OD.file+':/content');
   if(text==null) return { kind:'empty' };
@@ -1370,7 +1425,7 @@ async function odReconcile(){
   return { kind:'exists', remote, remoteText:text, remoteCount:countTasksIn(remote), localCount:countTasksIn(DB),
            remoteSavedAt:+remote.savedAt||0, localSavedAt:+DB.savedAt||0, diff:diffPlanner(DB,remote) };
 }
-function odPersistMeta(){ localStorage.setItem(OD.metaKey, JSON.stringify({ live:odState.live, account:odState.account, etag:odState.etag })); }
+function odPersistMeta(){ localStorage.setItem(OD.metaKey, JSON.stringify({ live:odState.live, account:odState.account, etag:odState.etag, baseRev:odState.baseRev })); }
 
 /* ---- write: backup → conditional put → verify ---- */
 let _syncRetryT=null, _syncRetryN=0;
@@ -1383,20 +1438,39 @@ async function odPush(){
     if(odState.backedUp!==todayISO){ const cur=await gText(APPROOT+'/'+OD.file+':/content'); if(cur!=null){ await gPut(APPROOT+'/backups/'+OD.file.replace('.json','')+'-'+todayISO+'.json:/content', cur); } odState.backedUp=todayISO; }
     let meta=await gPutIfMatch(APPROOT+'/'+OD.file+':/content', payload, odState.etag);
     if(meta && meta.conflict){
-      // another device wrote since we last looked — decide by timestamp, never blind-overwrite
+      /* v2.1 (FAULT 2): another device wrote since our last etag. Decide by REVISION, never
+         by savedAt, and NEVER re-push with If-Match:null. If the cloud has advanced beyond
+         the revision we based on, we must not overwrite it. */
+      const cmeta=await odItemMeta();                       // fresh etag for a safe re-push
       const text=await gText(APPROOT+'/'+OD.file+':/content');
       let remote=null; try{ remote=text?JSON.parse(text):null; }catch(e){}
-      if(!remote || (+remote.savedAt||0) <= (+DB.savedAt||0)){
-        meta=await gPutIfMatch(APPROOT+'/'+OD.file+':/content', payload, null);   // our copy is the newer one — take over
+      const diff = remote ? diffPlanner(DB, remote) : null;
+      const decision = decidePushConflict(odState.baseRev, remote, diff);
+      odLog('push-conflict', {decision, rev:DB.rev, base:odState.baseRev, rrev:(remote&&Number.isInteger(remote.rev))?remote.rev:null,
+        tasks:countTasksIn(DB).tasks, dated:datedCount(DB), rdated: remote?datedCount(remote):null, moved: diff?diff.moved:null});
+      if(decision==='takeover'){
+        meta=await gPutIfMatch(APPROOT+'/'+OD.file+':/content', payload, cmeta&&cmeta.eTag);   // FRESH etag — never null
+        if(meta && meta.conflict){ odState.syncing=false; _pushPending=false; odState.error='Cloud kept changing — will retry.'; updateSyncBadge(); return; }
+      } else if(decision==='adopt' && remote){
+        adoptRemote(remote, cmeta&&cmeta.eTag);             // cloud loses us nothing — take it
+        odState.syncing=false; odState.error=null; _pushPending=false; updateSyncBadge();
+        flashToast('Updated from cloud ✓');
+        return;
       } else {
-        odState.syncing=false; odState.error='Another device saved newer changes — review needed.'; _pushPending=false; updateSyncBadge();
-        openReconcile();   // human sees both counts and chooses; the smaller-cloud discard guard applies
+        // reconcile — position-aware message (fix 3): a push that moves tasks off their day is stopped and shown
+        odState.syncing=false; _pushPending=false;
+        odState.error = (diff&&diff.moved) ? ('Stopped a change that would move '+diff.moved+' task'+(diff.moved!==1?'s':'')+' off their day — review needed.')
+                                           : 'Another device changed the cloud — review needed.';
+        updateSyncBadge();
+        openReconcile();
         return;
       }
     }
     const sent=new Blob([payload]).size;
     if(meta && typeof meta.size==='number' && Math.abs(meta.size-sent)>2) throw new Error('write not verified ('+meta.size+'≠'+sent+'B)');
-    if(meta && (meta.eTag||meta['@odata.etag'])){ odState.etag=meta.eTag||meta['@odata.etag']; odPersistMeta(); }
+    if(meta && (meta.eTag||meta['@odata.etag'])){ odState.etag=meta.eTag||meta['@odata.etag']; }
+    odState.baseRev=DB.rev; odPersistMeta();               // v2.1: our push is now the base for the next one
+    odLog('push-ok', {rev:DB.rev, tasks:countTasksIn(DB).tasks, dated:datedCount(DB)});
     odState.lastSync=Date.now(); odState.error=null; _syncRetryN=0; _pushPending=false;
   }catch(e){
     odState.error='Cloud save failed — kept safe locally. '+e.message;
@@ -1423,23 +1497,30 @@ async function odPullCheck(reason){
     const text=await gText(APPROOT+'/'+OD.file+':/content');
     if(text==null){ odState.pulling=false; return; }
     let remote; try{ remote=JSON.parse(text); }catch(e){ odState.pulling=false; return; }   // corrupt cloud: manual reconcile only
-    const rSaved=+remote.savedAt||0, lSaved=+DB.savedAt||0;
-    if(rSaved<=lSaved){ odState.etag=meta.eTag||odState.etag; odPersistMeta(); odState.pulling=false; updateSyncBadge(); return; }  // we're newest — note etag so pushes can If-Match
-    const before=countTasksIn(remote).tasks;
-    migrate(remote);
-    const after=countTasksIn(remote).tasks;
-    const localN=countTasksIn(DB).tasks;
-    if(after<before || after<localN){ odState.pulling=false; openReconcile(); return; }     // would shrink — human decides
+    /* v2.1 (FAULT 2): decide by REVISION, not savedAt. A stale device whose Fitbit bumped
+       savedAt must NOT read itself as "newest" and skip adopting the good cloud copy. */
+    const diff = diffPlanner(DB, remote);
     if(dragging || (dlg&&dlg.open) || (_pushPending&&_syncRetryN<3)){ odState.pulling=false; return; }   // state changed while we were fetching — abort, try again later
-    if(_pushPending){ odState.pulling=false; openReconcile(); return; }   // pushes keep failing AND the cloud moved on: genuine two-sided conflict — human decides, nothing silent
-    DB.weeks=remote.weeks; DB.recur=remote.recur||DB.recur; if(remote.projects)DB.projects=remote.projects; if(remote.inbox)DB.inbox=remote.inbox; if(remote.shopping)DB.shopping=remote.shopping; mergeHealth(remote.health); if(remote.gym)DB.gym=remote.gym;
-    DB.savedAt=rSaved;
-    reseedUID(DB);
-    odState.etag=meta.eTag||null; odPersistMeta();
-    try{ localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({},DB,{_uid:UID}))); }catch(e){}   // persist adoption WITHOUT scheduling an echo push
-    ui.weekKey=null;                                                             // re-anchor to the current week
-    render();
-    flashToast('Updated from cloud ✓');
+    if(remoteIsSafelyNewer(odState.baseRev, remote, diff)){
+      const before=countTasksIn(DB).tasks; const rBefore=countTasksIn(remote).tasks;
+      if(rBefore<before){ odState.pulling=false; openReconcile(); return; }                  // belt-and-braces: never shrink silently
+      odLog('pull', {rrev:remote.rev, tasks:rBefore, dated:datedCount(remote)});
+      adoptRemote(remote, meta.eTag);
+      flashToast('Updated from cloud ✓');
+      odState.pulling=false; updateSyncBadge(); return;
+    }
+    // not safely-newer: either we're current/ahead, or the cloud diverged in a way a human must see.
+    const rRev=Number.isInteger(remote.rev)?remote.rev:null, bRev=Number.isInteger(odState.baseRev)?odState.baseRev:null;
+    if(rRev!=null && bRev!=null && rRev>bRev && diff.any){
+      // cloud advanced past our base AND the two copies differ — do not overwrite either silently
+      if(!_pushPending){
+        odLog('pull-blocked', {rrev:remote.rev, base:odState.baseRev, moved:diff.moved, tasks:countTasksIn(remote).tasks, dated:datedCount(remote)});
+        odState.error = diff.moved ? ('Cloud has '+diff.moved+' task'+(diff.moved!==1?'s':'')+' on different days — review needed.') : 'Cloud changed — review needed.';
+        odState.pulling=false; openReconcile(); return;
+      }
+    }
+    odState.etag=meta.eTag||odState.etag; odPersistMeta();                                   // we are current/ahead — note etag so our pushes can If-Match
+    odState.pulling=false; updateSyncBadge(); return;
   }catch(e){ /* offline or auth hiccup — stay quiet, badge reflects connection state */ }
   odState.pulling=false; updateSyncBadge();
 }
@@ -1596,7 +1677,7 @@ function updateSyncBadge(){ const el=document.querySelector('.synced'); if(el){ 
 
 async function initOneDrive(){
   const tok=JSON.parse(localStorage.getItem(OD.tokKey)||'null'); if(tok){ odState.connected=true; odState.account=tok.account||''; }
-  const meta=JSON.parse(localStorage.getItem(OD.metaKey)||'null'); if(meta){ odState.live=!!meta.live; odState.etag=meta.etag||null; }
+  const meta=JSON.parse(localStorage.getItem(OD.metaKey)||'null'); if(meta){ odState.live=!!meta.live; odState.etag=meta.etag||null; odState.baseRev=(Number.isInteger(meta.baseRev)?meta.baseRev:null); }
   const ctok=JSON.parse(localStorage.getItem(CAL.tokKey)||'null'); if(ctok){ calState.connected=true; calState.account=ctok.account||''; }
   const fitBack=fitHandleRedirect();                                 // hash only — never eats a Microsoft ?code=
   fitState.connected=!!fitToken();
@@ -1612,6 +1693,23 @@ async function initOneDrive(){
   }
 }
 
+/* v2.1 (FAULT 2, fix 4): a push/pull ring log surfaced in the app, so the NEXT incident is
+   read here, not reconstructed from OneDrive version history. Shows time, direction, this
+   device, revision, task count and DATED count (a revert-to-pool shows as dated dropping). */
+function renderSyncLog(){
+  const L=odLogRead(); if(!L.length) return '';
+  const hhmmO=ts=>{ const d=new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); };
+  const rows=L.slice(-12).reverse().map(e=>{
+    const label = e.dir==='push-ok'?'▲ pushed' : e.dir==='pull-adopt'?'▼ adopted' : e.dir==='pull'?'▼ pulled'
+      : e.dir==='push-conflict'?('⚠ conflict → '+(e.decision||'')) : e.dir;
+    const nums = [ e.rev!=null?('r'+e.rev):'', e.tasks!=null?(e.tasks+'t'):'', e.dated!=null?(e.dated+' dated'):'',
+                   (e.dir==='push-conflict'&&e.moved)?(e.moved+' moved'):'' ].filter(Boolean).join(' · ');
+    return `<div class="t" style="cursor:default"><span class="lab">${hhmmO(e.t)} <span class="subdesc">${label}${nums?' · '+nums:''} · ${(e.dev||'').slice(0,5)}</span></span></div>`;
+  }).join('');
+  return `<div class="eyebrow">Sync log<button class="addmini" data-act="synclog-clear" title="clear the log">clear</button><span class="ln"></span></div>
+    <div class="list">${rows}</div>
+    <div class="conn-d" style="margin-top:4px">Last ${Math.min(12,L.length)} of ${L.length} events on this device. "dated" = tasks on a weekday; if it drops with no push from you, a stale device tried to revert.</div>`;
+}
 function renderConnectionsInner(){
   const s=syncLabel();
   let od;
@@ -1680,6 +1778,7 @@ document.addEventListener('click', e=>{
   if(act==='selclear'){ ui.sel.clear(); render(); return; }
   if(act==='seldone'){ ui.selMode=false; ui.sel.clear(); render(); return; }
   if(act==='bulkmove'){ if(ui.sel.size) openBulkMoveSheet(); return; }
+  if(act==='synclog-clear'){ try{ localStorage.removeItem('wp:od:log'); }catch(e){} renderMore(); return; }
   if(act==='recurapply'){ if(!syncSettledForWrite()||odState.pulling){ flashToast('Still syncing with OneDrive — try again in a moment'); return; } const n=recurCatchupPreview(); if(!n){ flashToast('Nothing to add — rules already placed'); return; } applyRecurringFrom(todayMonday); saveDB(); renderMore(); flashToast('Added '+n+' repeating task'+(n!==1?'s':'')+' from this week forward'); return; }
   if(act==='fullday'){ ui.fullDay=!ui.fullDay; renderToday(); return; }
   if(act==='braindump'){ openBrainDump(); return; }
@@ -2511,7 +2610,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v2.0';
+const APP_VERSION='v2.1';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -2778,7 +2877,11 @@ async function refreshHealth(force){
       DB.health.updatedAt=Date.now();
     }
     _fitLast=Date.now();
-    if(changed) saveDB();                                                  // health data syncs to the phone through OneDrive — no phone-side Fitbit login needed
+    /* v2.1 (FAULT 2): this is an UNATTENDED write. It must NEVER bump savedAt or push —
+       that is exactly what let a stale device overwrite the cloud on 9-10 Aug. Health is
+       persisted locally only; it reaches the cloud on the next real (user-action) save, and
+       each device fetches its own Fitbit data anyway. */
+    if(changed) saveLocalOnly();
     render();
   }catch(e){ /* never throw into the app */ }
   fitState.refreshing=false;
