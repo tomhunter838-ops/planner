@@ -111,25 +111,6 @@
 
   /* subtasks */
   .subs{ margin:1px 0 2px 16px; border-left:2px solid var(--hair-2); padding:4px 0 4px 12px; display:flex; flex-direction:column; gap:6px; }
-  /* v2.2: compact read-only sub list — sibling of .t, shown while the task is closed */
-  .subsmini{ margin:1px 0 2px 17px; border-left:2px solid var(--hair-2); padding:2px 0 2px 12px; display:flex; flex-direction:column; gap:2px; min-width:0; cursor:pointer; }
-  .subsmini .sm{ display:flex; align-items:baseline; gap:6px; min-width:0; }
-  .subsmini .ltr{ flex:0 0 auto; min-width:2ch; text-align:right; font-size:9.5px; font-weight:740; color:var(--faint); font-variant-numeric:tabular-nums; }
-  .subsmini .sl{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; line-height:1.35; font-weight:540; color:var(--ink-2); }
-  .subsmini .sm.done .sl{ text-decoration:line-through; text-decoration-color:var(--faint); color:var(--faint); }
-  .subsmini .sm.done .ltr{ opacity:.55; }
-  .subsmini .sm.more .sl{ color:var(--faint); font-weight:640; font-size:10.5px; }
-  .t.done + .subsmini{ display:none; }
-  .hero .subsmini{ cursor:default; margin:9px 0 0 4px; }
-  /* v2.2: priority number — a ::before on the label (like the sub letters): pure display,
-     absent from textContent and from copied text, and it can never break row flex layout */
-  .t .lab[data-num]::before{ content:attr(data-num) ".\00a0"; display:inline-block; min-width:2ch; text-align:right; margin-right:2px; font-size:.88em; font-weight:740; color:var(--faint); font-variant-numeric:tabular-nums; }
-  /* v2.2: sub letters in the interactive rows — inline, never a flex child */
-  .sub .lab[data-ltr]::before{ content:attr(data-ltr) ".\00a0"; display:inline-block; font-size:.8em; font-weight:740; color:var(--faint); font-variant-numeric:tabular-nums; }
-  .sub.done .lab[data-ltr]::before{ opacity:.55; }
-  .drag-hidden{ display:none !important; }
-  .t.dropflash{ animation:dropflash .45s ease-out 1; }
-  @keyframes dropflash{ 0%{ box-shadow:0 0 0 3px var(--p-line) inset; } 100%{ box-shadow:none; } }
   .sub{ display:flex; align-items:center; gap:10px; background:var(--paper-2); border:1px solid var(--hair-2); border-radius:11px; padding:9px 11px; }
   /* min-width:0 — without it a sub-task label cannot shrink and runs out of the card.
      Measured at 860px: up to 52px of spill with the delete button outside the card in
@@ -266,12 +247,9 @@
     .col .t .lab{ font-size:12.5px; font-weight:560; flex:1 1 100%; order:2; }
     .col .t .check{ width:20px;height:20px; order:1; } .col .t .check.big{ width:20px;height:20px; }
     .col .t .grip{ order:0; width:14px; font-size:12px; }
-    .col .t .pill, .col .t .chev, .col .t .stuck, .col .t .mvbtn{ order:3; }
+    .col .t .pill, .col .t .chev, .col .t .stuck{ order:3; }
     .col .t .pill{ font-size:9.5px; padding:2px 6px; } .col .t .chev{ width:18px;height:18px; }
-    .col .subs{ margin-left:6px; }
-    .col .subsmini{ margin:0 0 0 8px; padding-left:9px; }
-    .col .subsmini .sl{ font-size:10.5px; line-height:1.3; }
-    .col .subsmini .ltr{ font-size:9px; }
+    .col .subs{ flex:1 1 100%; order:4; margin-left:6px; }
     .col .empty{ padding:10px 4px; } .col .empty .ic{ font-size:18px;} .col .empty .h{display:none;} .col .empty .s{ font-size:10.5px; }
     .dayhead.lap{ padding:6px 2px 4px; }
     .dayhead.lap .dow{ font-size:34px; }
@@ -473,8 +451,8 @@
   [data-lay="phone"] .wp-col .t .lab{ flex:1 1 100%; order:2; font-size:12.5px; }
   [data-lay="phone"] .wp-col .t .check{ order:1; }
   [data-lay="phone"] .wp-col .t .grip{ order:0; }
-  [data-lay="phone"] .wp-col .t .pill, [data-lay="phone"] .wp-col .t .chev, [data-lay="phone"] .wp-col .t .stuck, [data-lay="phone"] .wp-col .t .mvbtn{ order:3; }
-  [data-lay="phone"] .wp-col .subsmini{ margin-left:8px; }
+  [data-lay="phone"] .wp-col .t .pill, [data-lay="phone"] .wp-col .t .chev, [data-lay="phone"] .wp-col .t .stuck{ order:3; }
+  [data-lay="phone"] .wp-col .subs{ flex:1 1 100%; order:4; }
   .latelist .t{ background:var(--paper); }
   .pill.wctag{ opacity:.65; }
   .dp.late{ background:#f6e7d8; border-color:#e8cfae; }
@@ -841,34 +819,21 @@ function taskRow(t, ctx, opts={}){
   let html = `<div class="t ${t.kind==='work'?'kwork':''} ${t.done?'done':''} ${ui.selMode&&ui.sel.has(t.id)?'seled':''}" ${sel}>
       ${grip}
       <button class="check" data-act="check" aria-label="complete">${CHK}</button>
-      <span class="lab" data-act="edit"${(opts.num&&!t.done)?` data-num="${opts.num}"`:``}>${esc(t.label)}</span>
+      <span class="lab" data-act="edit">${esc(t.label)}</span>
       ${tag}${stuck}${claudePill(t)}${remindPill(t)}${time}${subsPill}${mv}${chev}
     </div>`;
   if(t.open && sc>=0){
     const items = t.subs.map((s,j)=>`<div class="sub ${s.done?'done':''}" data-sub="${j}">
         <button class="subcheck" data-act="subcheck">${CHK}</button>
-        <span class="lab"${j<26?` data-ltr="${String.fromCharCode(65+j)}"`:``}>${esc(s.label)}</span>
+        <span class="lab">${esc(s.label)}</span>
         <button class="x" data-act="delsub">×</button></div>`).join('');
     html += `<div class="subs" ${sel}>${items}<button class="sub add" data-act="addsub"><span class="plus">+</span>Add sub-task</button></div>`;
-  }
-  /* v2.2: compact read-only step list while the task is closed — letters are references
-     ("do B next"), the whole block is one large tap target that opens the real tick rows.
-     No data-sub, no per-row actions: a stray tap here can never write data. */
-  else if(sc && !t.done && !opts.nomini){
-    const cap = opts.capsubs ? 4 : 26;
-    const shown = t.subs.length>cap ? t.subs.slice(0,cap) : t.subs;
-    const rows = shown.map((s,j)=>`<div class="sm ${s.done?'done':''}"><span class="ltr">${String.fromCharCode(65+j)}.</span><span class="sl">${esc(s.label)}</span></div>`).join('');
-    const more = t.subs.length>shown.length ? `<div class="sm more"><span class="ltr"></span><span class="sl">+${t.subs.length-shown.length} more — tap to open</span></div>` : ``;
-    html += `<div class="subsmini" data-act="toggle" ${sel}>${rows}${more}</div>`;
   }
   return html;
 }
 function listHTML(arr, ctx, opts){
-  /* v2.2: numbers are computed over the RENDERED order (callers pass sortTimed output),
-     undone tasks only — ticking #1 promotes everything below it. Display-only. */
-  opts=opts||{}; let n=0;
   return `<div class="list" data-w="${ctx.w}" data-d="${ctx.d}" data-k="${ctx.k}">${
-    arr.map(t=>taskRow(t,{w:ctx.w,d:ctx.d},opts.num?Object.assign({},opts,{num:t.done?0:++n}):opts)).join('')}</div>`;
+    arr.map(t=>taskRow(t,{w:ctx.w,d:ctx.d},opts)).join('')}</div>`;
 }
 
 /* ----- TODAY ----- */
@@ -910,7 +875,6 @@ function renderToday(){
           </div>
         </div>
         ${(next.time||sc)?`<div class="meta">${next.time?`<span class="pill time">${next.time.replace('-','–')}</span>`:''}${sc?`<span class="pill subs ${sd===sc?'alldone':''}">${sd}/${sc} steps</span>`:''}</div>`:''}
-        ${sc?`<div class="subsmini">${next.subs.map((s,j)=>`<div class="sm ${s.done?'done':''}"><span class="ltr">${j<26?String.fromCharCode(65+j)+'.':''}</span><span class="sl">${esc(s.label)}</span></div>`).join('')}</div>`:''}
       </div>`;
   }
   if(then.length && !ui.fullDay){
@@ -925,8 +889,8 @@ function renderToday(){
         <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>`;
     if(ui.fullDay){
       const p=sortTimed(d.personal), w=sortTimed(d.work);
-      if(p.length){ body += `<div class="eyebrow p">Personal<span class="ln"></span></div>` + listHTML(p,{w:wKey,d:di,k:'personal'},{num:true}); }
-      if(w.length){ body += `<div class="eyebrow w">Work<span class="ln"></span></div>` + listHTML(w,{w:wKey,d:di,k:'work'},{num:true}); }
+      if(p.length){ body += `<div class="eyebrow p">Personal<span class="ln"></span></div>` + listHTML(p,{w:wKey,d:di,k:'personal'},{}); }
+      if(w.length){ body += `<div class="eyebrow w">Work<span class="ln"></span></div>` + listHTML(w,{w:wKey,d:di,k:'work'},{}); }
     }
   }
 
@@ -1059,8 +1023,7 @@ function renderWeekPlus(){
 function laneHTML(wk, di, kind){
   const arr = sortTimed(colArr(wk,di,kind));
   const lab = kind==='work'?'Work':'Personal';
-  let _n=0;
-  const inner = arr.length ? arr.map(t=>taskRow(t,{w:wk.key,d:di},{grip:true, capsubs:true, num:t.done?0:++_n})).join('')
+  const inner = arr.length ? arr.map(t=>taskRow(t,{w:wk.key,d:di},{grip:true})).join('')
     : `<div class="empty"><div class="ic">·</div><div class="s">—</div></div>`;
   return `<div class="lanelab ${kind[0]}">${lab}<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="${di}" data-k="${kind}">+</button></div>
     <div class="list" data-w="${wk.key}" data-d="${di}" data-k="${kind}">${inner}</div>`;
@@ -1069,7 +1032,7 @@ function dayViewHTML(wk){
   const di = ui.dayIdx;
   if(di==='L'){
     const items=pastUnfinishedAll();
-    const rows=items.map(x=>taskRow(x.t,{w:x.wk.key,d:x.di},{tag:'w/c '+wcShort(x.wk.key), nomini:true})).join('');
+    const rows=items.map(x=>taskRow(x.t,{w:x.wk.key,d:x.di},{tag:'w/c '+wcShort(x.wk.key)})).join('');
     return `<div class="dayhead"><div><div class="dow">Not done</div><div class="date">left in past weeks · tick here, or hold a task to move it into a day</div></div></div>
       ${items.length?`<button class="carry soft" data-act="pullpools">⇪ Move all ${items.length} → this week's Unscheduled</button><div class="list latelist">${rows}</div>`:`<div class="empty"><div class="ic">✓</div><div class="h">Nothing left behind.</div><div class="s">Past weeks are clear.</div></div>`}`;
   }
@@ -1077,22 +1040,22 @@ function dayViewHTML(wk){
     const p=sortTimed(wk.weekend.personal), w=sortTimed(wk.weekend.work);
     const [sy,sm,sd]=wk.key.split('-').map(Number);
     return `<div class="dayhead"><div><div class="dow">Weekend</div><div class="date">w/c ${sd} ${MON[sm-1]} · floating — sort into Sat/Sun when you're ready</div></div></div>
-      <div class="eyebrow p">Personal<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="W" data-k="personal">+ add</button><span class="ln"></span></div>${p.length?listHTML(p,{w:wk.key,d:'W',k:'personal'},{grip:true,num:true}):miniEmpty()}
-      <div class="eyebrow w">Work<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="W" data-k="work">+ add</button><span class="ln"></span></div>${w.length?listHTML(w,{w:wk.key,d:'W',k:'work'},{grip:true,num:true}):miniEmpty()}`;
+      <div class="eyebrow p">Personal<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="W" data-k="personal">+ add</button><span class="ln"></span></div>${p.length?listHTML(p,{w:wk.key,d:'W',k:'personal'},{grip:true}):miniEmpty()}
+      <div class="eyebrow w">Work<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="W" data-k="work">+ add</button><span class="ln"></span></div>${w.length?listHTML(w,{w:wk.key,d:'W',k:'work'},{grip:true}):miniEmpty()}`;
   }
   if(di==='F'){
     const p=sortTimed(wk.future.personal), w=sortTimed(wk.future.work);
     /* v2.0 (E6): "carries across weeks" was actively wrong — each week has its own pool */
     return `<div class="dayhead"><div><div class="dow">Unscheduled</div><div class="date">this week's holding pool — one per week</div></div></div>
-      <div class="eyebrow p">Personal<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="F" data-k="personal">+ add</button><span class="ln"></span></div>${p.length?listHTML(p,{w:wk.key,d:'F',k:'personal'},{grip:true,num:true}):miniEmpty()}
-      <div class="eyebrow w">Work<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="F" data-k="work">+ add</button><span class="ln"></span></div>${w.length?listHTML(w,{w:wk.key,d:'F',k:'work'},{grip:true,num:true}):miniEmpty()}`;
+      <div class="eyebrow p">Personal<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="F" data-k="personal">+ add</button><span class="ln"></span></div>${p.length?listHTML(p,{w:wk.key,d:'F',k:'personal'},{grip:true}):miniEmpty()}
+      <div class="eyebrow w">Work<button class="addmini" data-act="laneadd" data-w="${wk.key}" data-d="F" data-k="work">+ add</button><span class="ln"></span></div>${w.length?listHTML(w,{w:wk.key,d:'F',k:'work'},{grip:true}):miniEmpty()}`;
   }
   const d=wk.days[di], p=sortTimed(d.personal), w=sortTimed(d.work);
   const total=p.length+w.length;
   return `<div class="dayhead"><div><div class="dow">${DOWFULL[di]}</div><div class="date"><b>${d.n} ${d.month}</b> · ${total} task${total!==1?'s':''}</div></div></div>
     ${apptsBlock(addDays(wk.key,di))}
-    ${p.length?`<div class="eyebrow p">Personal<span class="ln"></span></div>`+listHTML(p,{w:wk.key,d:di,k:'personal'},{num:true}):''}
-    ${w.length?`<div class="eyebrow w">Work<span class="ln"></span></div>`+listHTML(w,{w:wk.key,d:di,k:'work'},{num:true}):''}
+    ${p.length?`<div class="eyebrow p">Personal<span class="ln"></span></div>`+listHTML(p,{w:wk.key,d:di,k:'personal'},{}):''}
+    ${w.length?`<div class="eyebrow w">Work<span class="ln"></span></div>`+listHTML(w,{w:wk.key,d:di,k:'work'},{}):''}
     ${total===0?`<div class="empty"><div class="ic">🗓️</div><div class="h">Nothing here yet.</div><div class="s">Add one below — it lands on ${d.dow}.</div></div>`:''}`;
 }
 function miniEmpty(){ return `<div class="empty" style="padding:14px"><div class="s">Nothing yet.</div></div>`; }
@@ -1251,19 +1214,9 @@ async function beginAuth(cfg, stateObj, opts){
   const u=new URL(cfg.authority+'/oauth2/v2.0/authorize');
   u.search=new URLSearchParams({ client_id:cfg.clientId, response_type:'code', redirect_uri:cfg.redirect, response_mode:'query', scope:cfg.scopes, code_challenge:challenge, code_challenge_method:'S256', state, prompt:(opts.prompt||'select_account') }).toString();
   if(opts.login_hint){ const q=new URLSearchParams(u.search); q.set('login_hint',opts.login_hint); u.search=q.toString(); }
-  navTo(u.toString());
+  location.assign(u.toString());
 }
 function connectOneDrive(){ return beginAuth(OD, odState); }
-/* v2.2 (E1): one-click OneDrive renewal — silent against the live Microsoft session, same
-   pattern the calendar has had. login_hint names the personal account so prompt=none can
-   succeed with two accounts alive in the browser. */
-function reconnectOneDrive(){
-  sessionStorage.removeItem('wp:od:interactive');
-  sessionStorage.setItem('wp:od:silent','1');
-  let hint='';
-  try{ hint=(JSON.parse(localStorage.getItem(OD.tokKey)||'null')||{}).account||odState.account||''; }catch(e){}
-  return beginAuth(OD, odState, {prompt:'none', login_hint:hint});
-}
 function connectOutlook(){ sessionStorage.removeItem('wp:cal:interactive'); return beginAuth(CAL, calState); }
 /* Reconnect without the account picker where possible: prompt=none is a top-level
    round trip against the live Microsoft session, so it does not depend on third-party
@@ -1271,7 +1224,6 @@ function connectOutlook(){ sessionStorage.removeItem('wp:cal:interactive'); retu
    needed, handleRedirect falls through to the normal interactive sign-in once. */
 function reconnectOutlook(){
   sessionStorage.removeItem('wp:cal:interactive');
-  sessionStorage.setItem('wp:cal:silent','1');
   /* Without a login_hint, Entra answers prompt=none with login_required whenever more
      than one account is live in the browser session — and there always are two here
      (personal MSA for OneDrive, work account for the calendar). Naming the account is
@@ -1281,8 +1233,6 @@ function reconnectOutlook(){
   return beginAuth(CAL, calState, {prompt:'none', login_hint:hint});
 }
 function cleanUrl(){ try{ history.replaceState({}, '', OD.redirect); }catch(e){} }
-/* v2.2 (E1): single navigation seam — tests stub this; nothing else may navigate for auth */
-function navTo(u){ window.__navPending=true; if(window.__navStub) return window.__navStub(String(u)); location.assign(u); }
 async function tokenRequest(cfg, extra){
   const body=new URLSearchParams(Object.assign({client_id:cfg.clientId, scope:cfg.scopes}, extra));
   const r=await fetch(cfg.authority+'/oauth2/v2.0/token',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
@@ -1293,40 +1243,6 @@ function storeToken(cfg, stateObj, j){
   try{ if(j.id_token){ const c=JSON.parse(atob(j.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); tok.account=c.preferred_username||c.email||c.name||''; } }catch(e){}
   localStorage.setItem(cfg.tokKey, JSON.stringify(tok));
   stateObj.connected=true; stateObj.expired=false; stateObj.account=tok.account||stateObj.account;
-}
-/* v2.2 (E1): automatic silent renewal on open. Try the fetch-based refresh first (getToken);
-   only a token whose refresh grant is genuinely dead (the 24h SPA cap) earns a prompt=none
-   top-level round trip. One connection per open — the other is chained on the return leg.
-   An automatic attempt can NEVER escalate to an interactive sign-in (the interactive flag is
-   pre-set), never fires offline, never fires over live work, never twice a session, and backs
-   off 6h per connection in localStorage (iOS standalone sessionStorage is per-launch — the
-   stamp is what stops a bounce on every phone open). All guards are written BEFORE navigation. */
-async function maybeAutoRenew(which){
-  try{
-    if(window.__navPending) return;
-    const q=new URLSearchParams(location.search);
-    if(q.get('code')||q.get('error')) return;
-    if(window.__sharedBoot) return;                                  // a share-sheet capture lands visibly first; renew next open
-    if(!navigator.onLine) return;
-    const jobs=[];
-    if(which!=='cal' && odState.connected && odState.live) jobs.push([OD, odState, 'od']);
-    if(which!=='od' && calState.connected) jobs.push([CAL, calState, 'cal']);
-    for(const [cfg, st, tag] of jobs){
-      if(sessionStorage.getItem('wp:renew:'+tag+':done')) continue;
-      const stamp=+(localStorage.getItem('wp:renew:'+tag+':stamp')||0);
-      if(Date.now()-stamp < 6*3600*1000) continue;
-      let dead=false;
-      try{ await getToken(cfg, st); }catch(e){ dead=!!e.needsSignIn; }
-      if(!dead) continue;
-      if((typeof dlg!=='undefined' && dlg && dlg.open) || dragging || _pushPending || odState.syncing || odState.pulling || window.__navPending) return;   // never navigate over live work
-      sessionStorage.setItem('wp:renew:'+tag+':done','1');
-      localStorage.setItem('wp:renew:'+tag+':stamp', String(Date.now()));
-      sessionStorage.setItem(tag==='od'?'wp:od:interactive':'wp:cal:interactive','1');
-      sessionStorage.setItem(tag==='od'?'wp:od:silent':'wp:cal:silent','1');
-      await beginAuth(cfg, st, {prompt:'none', login_hint:st.account||''});
-      return;
-    }
-  }catch(e){}
 }
 async function handleRedirect(){
   const p=new URLSearchParams(location.search); if(!p.get('code')&&!p.get('error')) return null;
@@ -1343,16 +1259,7 @@ async function handleRedirect(){
     if(who===calState && /interaction_required|login_required|consent_required/.test(err)){
       localStorage.removeItem(CAL.pkceKey); cleanUrl();
       if(!sessionStorage.getItem('wp:cal:interactive')){ sessionStorage.setItem('wp:cal:interactive','1'); beginAuth(CAL, calState); }
-      else { calState.expired=true; calState.error=null; }   // silent leg needs a human: plain sign-in button, never a raw AADSTS string
-      return null;
-    }
-    if(who===odState && /interaction_required|login_required|consent_required/.test(err)){
-      /* v2.2 (E1): a OneDrive silent attempt that needs a human falls back to interactive ONCE
-         for a user-clicked reconnect. An automatic attempt pre-sets the flag, so it can only
-         ever fall through to the visible sign-in button — never an unattended account picker. */
-      localStorage.removeItem(OD.pkceKey); cleanUrl();
-      if(!sessionStorage.getItem('wp:od:interactive')){ sessionStorage.setItem('wp:od:interactive','1'); let h=''; try{ h=(JSON.parse(localStorage.getItem(OD.tokKey)||'null')||{}).account||''; }catch(e){} beginAuth(OD, odState, {login_hint:h}); }
-      else { odState.expired=true; }
+      else { calState.expired=true; calState.error='Sign-in: '+(p.get('error_description')||err); }   // second failure: say why, never loop in silence
       return null;
     }
     if(who){ who.error='Sign-in: '+(p.get('error_description')||err); if(whoCfg) localStorage.removeItem(whoCfg.pkceKey); }
@@ -1502,13 +1409,7 @@ function saveLocalOnly(){ try{ DB._uid=UID; localStorage.setItem(STORE_KEY, JSON
 /* adopt a remote copy into this device (shared by pull and by an adopt-on-push-conflict). */
 function adoptRemote(remote, etag){
   migrate(remote);
-  /* v2.2 (integrity review F2): the arbitration diff indexes weeks only, so an adopt judged
-     "loses nothing" could still wipe a local-only inbox capture (e.g. a share-sheet thought
-     seconds old) or shopping item by wholesale replacement. Union them, local items first;
-     dedupe by label. Weeks/projects/recur still adopt (rev-arbitrated). */
-  const mergeList=(loc,rem)=>{ const l=Array.isArray(loc)?loc:[], r=Array.isArray(rem)?rem:[]; const seen=new Set(r.map(x=>x&&x.label)); return l.filter(x=>x&&!seen.has(x.label)).concat(r); };
-  const keptInbox=mergeList(DB.inbox, remote.inbox), keptShop=mergeList(DB.shopping, remote.shopping);
-  DB.weeks=remote.weeks; DB.recur=remote.recur||DB.recur; if(remote.projects)DB.projects=remote.projects; DB.inbox=keptInbox; DB.shopping=keptShop; mergeHealth(remote.health); if(remote.gym)DB.gym=remote.gym;
+  DB.weeks=remote.weeks; DB.recur=remote.recur||DB.recur; if(remote.projects)DB.projects=remote.projects; if(remote.inbox)DB.inbox=remote.inbox; if(remote.shopping)DB.shopping=remote.shopping; mergeHealth(remote.health); if(remote.gym)DB.gym=remote.gym;
   DB.savedAt=+remote.savedAt||DB.savedAt;
   DB.rev = Number.isInteger(remote.rev) ? remote.rev : (Number.isInteger(DB.rev)?DB.rev:1);
   reseedUID(DB);
@@ -1534,7 +1435,6 @@ async function odPush(){
   odState.syncing=true; updateSyncBadge();
   try{
     const payload=exportShape();
-    const pushedRev=DB.rev;                                 /* v2.2 (integrity review F1): the rev this PUT actually carries */
     if(odState.backedUp!==todayISO){ const cur=await gText(APPROOT+'/'+OD.file+':/content'); if(cur!=null){ await gPut(APPROOT+'/backups/'+OD.file.replace('.json','')+'-'+todayISO+'.json:/content', cur); } odState.backedUp=todayISO; }
     let meta=await gPutIfMatch(APPROOT+'/'+OD.file+':/content', payload, odState.etag);
     if(meta && meta.conflict){
@@ -1550,7 +1450,7 @@ async function odPush(){
         tasks:countTasksIn(DB).tasks, dated:datedCount(DB), rdated: remote?datedCount(remote):null, moved: diff?diff.moved:null});
       if(decision==='takeover'){
         meta=await gPutIfMatch(APPROOT+'/'+OD.file+':/content', payload, cmeta&&cmeta.eTag);   // FRESH etag — never null
-        if(meta && meta.conflict){ odState.syncing=false; odState.error='Cloud kept changing — will retry.'; updateSyncBadge(); return; }   /* v2.2: stays pending — retried on the next save/hide/online */
+        if(meta && meta.conflict){ odState.syncing=false; _pushPending=false; odState.error='Cloud kept changing — will retry.'; updateSyncBadge(); return; }
       } else if(decision==='adopt' && remote){
         adoptRemote(remote, cmeta&&cmeta.eTag);             // cloud loses us nothing — take it
         odState.syncing=false; odState.error=null; _pushPending=false; updateSyncBadge();
@@ -1569,14 +1469,9 @@ async function odPush(){
     const sent=new Blob([payload]).size;
     if(meta && typeof meta.size==='number' && Math.abs(meta.size-sent)>2) throw new Error('write not verified ('+meta.size+'≠'+sent+'B)');
     if(meta && (meta.eTag||meta['@odata.etag'])){ odState.etag=meta.eTag||meta['@odata.etag']; }
-    /* v2.2 (integrity review F1): base on the revision we PUSHED, never the current one — a
-       save landing mid-flight must not inflate baseRev past what the cloud holds (that lie
-       made this device silently out-rank a newer cloud: the FAULT 2 class by another door).
-       If a newer save exists, it stays pending and the push re-arms. */
-    odState.baseRev=pushedRev; odPersistMeta();
-    odLog('push-ok', {rev:pushedRev, tasks:countTasksIn(DB).tasks, dated:datedCount(DB)});
-    odState.lastSync=Date.now(); odState.error=null; _syncRetryN=0;
-    if(DB.rev===pushedRev){ _pushPending=false; } else { _pushPending=true; clearTimeout(_syncT); _syncT=setTimeout(odPush, 400); }
+    odState.baseRev=DB.rev; odPersistMeta();               // v2.1: our push is now the base for the next one
+    odLog('push-ok', {rev:DB.rev, tasks:countTasksIn(DB).tasks, dated:datedCount(DB)});
+    odState.lastSync=Date.now(); odState.error=null; _syncRetryN=0; _pushPending=false;
   }catch(e){
     odState.error='Cloud save failed — kept safe locally. '+e.message;
     if(_syncRetryN<3){ _syncRetryN++; clearTimeout(_syncRetryT); _syncRetryT=setTimeout(()=>{ if(odState.connected&&odState.live) odPush(); }, 20000*_syncRetryN); }
@@ -1634,7 +1529,7 @@ window.addEventListener('focus', function(){ odPullCheck('focus'); });
 window.addEventListener('online', function(){ flushSync(); odPullCheck('online'); });
 let _syncT, _pushPending=false;
 function scheduleSync(){ if(!odState.connected||!odState.live) return; _pushPending=true; clearTimeout(_syncT); _syncT=setTimeout(odPush, 1500); }
-function flushSync(){ if(!odState.connected||!odState.live||odState.syncing) return; if(!_pushPending) return; clearTimeout(_syncT); odPush(); }   /* v2.2 (integrity review F4): only a pending real save is worth a push — never fork rev-inert content into the cloud */
+function flushSync(){ if(!odState.connected||!odState.live||odState.syncing) return; clearTimeout(_syncT); odPush(); }
 document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') flushSync(); });
 window.addEventListener('pagehide', flushSync);
 
@@ -1788,30 +1683,10 @@ async function initOneDrive(){
   fitState.connected=!!fitToken();
   const back=await handleRedirect();                                 // Microsoft redirect ALWAYS gets processed too
   updateSyncBadge();
-  const odSilent=!!sessionStorage.getItem('wp:od:silent'), calSilent=!!sessionStorage.getItem('wp:cal:silent');
-  if(back==='od'){
-    sessionStorage.removeItem('wp:od:silent');
-    if(odSilent && odState.live){
-      /* v2.2 (E1): a renewal return is an ordinary open, not a first connect — no view steal,
-         no reconcile dialog; the guarded init pull decides, exactly as every open does. */
-      flashToast('Reconnected OneDrive automatically ✓');
-      odPullCheck('init');
-      if(calState.connected){ refreshCalendar().then(()=>render()); }
-      maybeAutoRenew('cal');                                        // second leg only after this return settled
-    } else { ui.view='more'; render(); openReconcile(); }
-    if(fitBack) refreshHealth(true);
-  }
-  else if(back==='cal'){
-    sessionStorage.removeItem('wp:cal:silent');
-    if(calSilent){ flashToast('Reconnected calendar automatically ✓'); refreshCalendar().then(()=>render()); }
-    else { ui.view='week'; render(); refreshCalendar().then(()=>render()); }
-    if(odState.connected && odState.live){ odPullCheck('init'); }   // v2.2: a redirect-return open checks the cloud like any other open
-    if(fitBack) refreshHealth(true);
-    if(calSilent) maybeAutoRenew('od');
-  }
+  if(back==='od'){ ui.view='more'; render(); openReconcile(); if(fitBack) refreshHealth(true); }
+  else if(back==='cal'){ ui.view='week'; render(); refreshCalendar().then(()=>render()); if(fitBack) refreshHealth(true); }
   else if(fitBack){ ui.view='more'; render(); flashToast('Fitbit connected ✓ — gathering your data'); refreshHealth(true); }
   else {
-    await maybeAutoRenew();                                         // v2.2 (E1): fast no-op when tokens are healthy; may navigate when one is dead
     if(calState.connected){ refreshCalendar().then(()=>render()); }
     if(odState.connected && odState.live){ odPullCheck('init'); }   // every ordinary open now checks the cloud first
     if(fitState.connected){ refreshHealth(); }                      // top up today's health numbers on open
@@ -1850,9 +1725,7 @@ function renderConnectionsInner(){
     od=`<div class="conn">
       <div class="conn-h"><div><div class="conn-t">OneDrive ${odState.live?'<span class="conn-live">● live</span>':'<span class="pill remind">read-only</span>'}</div><div class="conn-d">${esc(odState.account||'connected')}</div></div><span class="conn-badge" style="color:${s.dot}">${s.txt}</span></div>
       ${workish?`<div class="conn-warn">This looks like a <b>work</b> account. Task storage must be your <b>personal</b> Microsoft account — disconnect and reconnect with the personal one.</div>`:''}
-      ${odState.expired?`<div class="conn-warn">Signed out — Microsoft ends browser sign-ins after 24 hours. Your tasks are safe on this device; they just aren't syncing until you sign in.</div>`:''}
       ${odState.error?`<div class="conn-warn">${esc(odState.error)} <button class="linkbtn" data-od="retry">Retry</button></div>`:''}
-      ${odState.expired?`<button class="conn-btn" data-od="reconnect">Sign in again</button>`:''}
       ${!odState.live
         ? `<button class="conn-btn" data-od="makelive">Make this my live planner</button><div class="conn-d" style="margin-top:6px">Until you do, your cloud file stays exactly as it is. <button class="linkbtn" data-od="reconcile">Re-check cloud</button></div>`
         : `<div class="conn-row2"><button class="conn-btn ghost2" data-od="backupnow">Back up now</button><button class="conn-btn ghost2" data-od="reconcile">Re-check cloud</button></div>`}
@@ -1972,7 +1845,6 @@ document.addEventListener('click', e=>{
   const b=e.target.closest('[data-od]'); if(!b) return;
   const a=b.dataset.od;
   if(a==='connect') connectOneDrive();
-  else if(a==='reconnect') reconnectOneDrive();
   else if(a==='disconnect') odDisconnect();
   else if(a==='makelive') odMakeLive();
   else if(a==='backupnow') odBackupNow();
@@ -2123,7 +1995,7 @@ function wcShort(k){ const [y,m,d]=k.split('-').map(Number); return d+' '+MON[m-
 function overdueColHTML(extraCls){
   if(ui.weekKey!==todayMonday) return '';
   const items=pastUnfinishedAll(); if(!items.length) return '';
-  const rows=items.map(x=>taskRow(x.t,{w:x.wk.key,d:x.di},{grip:true, tag:'w/c '+wcShort(x.wk.key), nomini:true})).join('');   /* v2.2: the cross-week aggregate stays dense — no compact sub lists here, matching the phone Late view */
+  const rows=items.map(x=>taskRow(x.t,{w:x.wk.key,d:x.di},{grip:true, tag:'w/c '+wcShort(x.wk.key)})).join('');
   return `<div class="col late ${extraCls||''}"><div class="colhead"><span class="dw">Not done</span><span class="nn">past weeks · ${items.length}</span><button class="addmini warn" data-act="pullpools" title="move all into this week's Future for sorting" aria-label="move every overdue task into this week's Future">⇪ all</button></div>${rows?`<div class="list latelist">${rows}</div>`:''}</div>`;
 }
 function doPullPools(){
@@ -2521,14 +2393,14 @@ function exportExcel(){
   wk.days.forEach((d,di)=>{
     ['personal','work'].forEach(kind=>{
       sortTimed(d[kind]).forEach((t,i)=>{
-        const subs=t.subs.map((s,j)=>(j<26?String.fromCharCode(65+j)+'. ':'')+(s.done?'[x] ':'[ ] ')+s.label).join(' · ');
+        const subs=t.subs.map(s=>(s.done?'[x] ':'[ ] ')+s.label).join(' · ');
         const bg=kind==='work'?'#eaf1f4':'#f7ece2';
         rows+=`<tr><td>${d.dow} ${d.n}</td><td style="background:${bg}">${kind==='work'?'Work':'Personal'}</td><td>${t.time||''}</td><td>${xc(t.label)}${t.defers>=3?' (STUCK '+t.defers+'x)':''}</td><td>${xc(subs)}</td><td>${t.done?'Done':''}</td></tr>`;
       });
     });
   });
-  if(wk.weekend) ['personal','work'].forEach(kind=>{ sortTimed(wk.weekend[kind]).forEach(t=>{ rows+=`<tr><td>Weekend</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map((s,j)=>(j<26?String.fromCharCode(65+j)+'. ':'')+s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
-  ['personal','work'].forEach(kind=>{ sortTimed(wk.future[kind]).forEach(t=>{ rows+=`<tr><td>Unscheduled</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map((s,j)=>(j<26?String.fromCharCode(65+j)+'. ':'')+s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
+  if(wk.weekend) ['personal','work'].forEach(kind=>{ sortTimed(wk.weekend[kind]).forEach(t=>{ rows+=`<tr><td>Weekend</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map(s=>s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
+  ['personal','work'].forEach(kind=>{ sortTimed(wk.future[kind]).forEach(t=>{ rows+=`<tr><td>Unscheduled</td><td>${kind==='work'?'Work':'Personal'}</td><td></td><td>${xc(t.label)}</td><td>${xc(t.subs.map(s=>s.label).join(' · '))}</td><td>${t.done?'Done':''}</td></tr>`; }); });
   const [sy,sm,sd]=ui.weekKey.split('-').map(Number);
   const head=`<table border="1" style="border-collapse:collapse;font-family:Arial;font-size:11pt"><tr><td colspan="6" style="background:#bd5f37;color:#fff;font-size:15pt;font-weight:bold;padding:8px">Weekly Planner — w/c ${sd} ${MON[sm-1]} ${sy}</td></tr><tr style="background:#2c2722;color:#fff;font-weight:bold"><td>Day</td><td>Lane</td><td>Time</td><td>Task</td><td>Sub-tasks</td><td>✓</td></tr>`;
   download('weekly-planner-'+ui.weekKey+'.xls','\ufeff'+head+rows+'</table>','application/vnd.ms-excel');
@@ -2574,8 +2446,6 @@ document.addEventListener('pointerdown', e=>{
   e.preventDefault();
   const row=grip.closest('.t'); const ctx=findTask(row); if(!ctx) return;
   dragging=true; row.classList.add('dragging');
-  /* v2.2: the row's sub blocks stay behind during a live drag — hide them until a render heals the DOM (every up() path renders) */
-  { let sib=row.nextElementSibling; while(sib && (sib.classList.contains('subs')||sib.classList.contains('subsmini'))){ sib.classList.add('drag-hidden'); sib=sib.nextElementSibling; } }
   const srcArr=ctx.arr, srcObj=ctx.t;
   /* Where a release actually lands. Anywhere inside a column counts — its header, a lane
      label, the gap between lanes — because that is plainly what was aimed at. Outside every
@@ -2611,7 +2481,7 @@ document.addEventListener('pointerdown', e=>{
   function up(ev){
     const tgt=(ev && typeof ev.clientX==='number') ? resolveTarget(ev.clientX,ev.clientY) : null;
     dragging=false; row.classList.remove('dragging');
-    window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up);
+    window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up);
     if(!tgt){ render(); return; }   // released outside any column — put it back, touch nothing
     const wk=DB.weeks[tgt.dataset.w] || (/^\d{4}-\d{2}-\d{2}$/.test(tgt.dataset.w||'') ? ensureWeek(tgt.dataset.w) : null);
     const di=(tgt.dataset.d==='F'||tgt.dataset.d==='W')?tgt.dataset.d:Number(tgt.dataset.d); const kind=tgt.dataset.k;
@@ -2626,10 +2496,8 @@ document.addEventListener('pointerdown', e=>{
     // account for timed-sort: just push then sort handled on render
     tgtArr.splice(newIdx,0,srcObj);
     saveDB(); render();
-    /* v2.2: confirm the drop visibly — sortTimed can relocate the row, the flash lets the eye re-acquire it */
-    requestAnimationFrame(()=>{ const el=document.querySelector('.t[data-id="'+srcObj.id+'"]'); if(el){ el.classList.add('dropflash'); setTimeout(()=>{ el.classList.remove('dropflash'); }, 500); } });
   }
-  window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);   /* v2.2: a cancelled stream must not latch `dragging` */
+  window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
 });
 
 /* long-press (any device) or right-click (laptop) on a task → move sheet */
@@ -2742,7 +2610,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v2.2';
+const APP_VERSION='v2.1';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -3189,7 +3057,7 @@ function checkReminders(){ const now=Date.now(); let fired=false; allReminders()
 /* ---------- boot ---------- */
 DB=loadDB();
 // Web Share Target: text shared from iOS lands in the brain-dump inbox
-(function(){ try{ const p=new URLSearchParams(location.search); if(!p.get('code')&&!p.get('error')){ const shared=[p.get('text'),p.get('title'),p.get('url')].filter(Boolean).join(' ').trim(); if(shared){ DB.inbox=DB.inbox||[]; DB.inbox.unshift({label:shared}); window.__sharedBoot=true; try{ saveLocalOnly(); }catch(e){} try{ history.replaceState({},'',location.pathname); }catch(e){} }   /* v2.2: a shared thought is persisted the moment it lands (rev-inert) — it can no longer die in memory */ } }catch(e){} })();
+(function(){ try{ const p=new URLSearchParams(location.search); if(!p.get('code')&&!p.get('error')){ const shared=[p.get('text'),p.get('title'),p.get('url')].filter(Boolean).join(' ').trim(); if(shared){ DB.inbox=DB.inbox||[]; DB.inbox.unshift({label:shared}); try{ history.replaceState({},'',location.pathname); }catch(e){} } } }catch(e){} })();
 try{ loadCalCache(); }catch(e){}
 render();
 try{ initOneDrive(); }catch(e){}
