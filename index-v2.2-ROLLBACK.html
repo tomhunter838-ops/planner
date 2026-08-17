@@ -255,9 +255,6 @@
     .hmini .hmStp b{ color:#4e8a5a; }
     .hmini .hm.none b{ color:var(--faint); font-weight:620; }
     .hmini.smp{ opacity:.55; }
-    /* v2.3: per-day source badge — colhead line 1, beside the day number (measured: the chip
-       group at 860px sits at 100.0% of its budget; line 1 has 54px slack) */
-    .hsrc{ font-size:8px; font-weight:800; color:var(--faint); border:1px solid var(--hair); border-radius:4px; padding:0 3px; align-self:center; flex:0 0 auto; }
     .colhead .dw{ font-size:13px; font-weight:760; } .colhead .nn{ font-size:13px; font-weight:680; color:var(--muted); }
     .col.today .colhead .dw{ color:var(--p); } .col.fut .colhead .dw{ color:var(--gold); }
     .lanelab{ font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; font-weight:760; color:var(--faint); margin:8px 2px 6px; display:flex; justify-content:space-between; align-items:center; }
@@ -356,7 +353,7 @@
   .col .appts{ gap:4px; margin-bottom:7px; }
   .col .appt{ padding:5px 7px; border-radius:8px; gap:6px; }
   .col .appt-t{ font-size:9.5px; min-width:30px; } .col .appt-l{ font-size:10.5px; } .col .appt-loc{ display:none; }
-  @container app (min-width:820px){ .hribbon:not([style]){ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); overflow:visible; } .hribbon:not([style]) .hstat{ min-width:0; } .hribbon.connect{ display:block; } }   /* v2.3 (panel): a warn line is a sentence, not a stat grid — without this it squeezes into column 1 */
+  @container app (min-width:820px){ .hribbon:not([style]){ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); overflow:visible; } .hribbon:not([style]) .hstat{ min-width:0; } }
   .headright{ display:flex; align-items:center; gap:10px; flex:0 0 auto; }
   .bell{ position:relative; width:40px; height:40px; border-radius:13px; background:var(--paper); border:1px solid var(--hair); display:grid; place-items:center; box-shadow:var(--shadow-1); }
   .bell svg{ width:19px; height:19px; stroke:var(--ink-2); stroke-width:1.9; fill:none; stroke-linecap:round; stroke-linejoin:round; }
@@ -368,20 +365,6 @@
   .drv-l{ flex:1; min-width:0; } .drv-name{ font-size:13px; font-weight:740; color:color-mix(in srgb, var(--pc) 72%, var(--ink)); }
   .drv-next{ font-size:12.5px; color:var(--ink-2); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .drv-r{ flex:0 0 auto; width:88px; text-align:right; } .drv-pct{ font-size:15px; font-weight:780; color:color-mix(in srgb, var(--pc) 72%, var(--ink)); }
-  /* v2.3: Health view — mini-table grid + disclosures + entry affordance + age line */
-  .htab{ display:grid; grid-template-columns:44px repeat(5,1fr); gap:0 6px; font-variant-numeric:tabular-nums; margin-top:8px; }
-  .htab > span{ font-size:11px; padding:3px 0; border-bottom:1px solid var(--hair-2); text-align:right; }
-  .htab > span:nth-child(6n+1){ text-align:left; color:var(--muted); }
-  .htab .hh{ font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:760; color:var(--faint); }
-  .htab4 > span:nth-child(6n+1){ text-align:right; color:inherit; }
-  .htab4 > span:nth-child(4n+1){ text-align:left; color:var(--muted); }
-  details.hdisc{ margin-top:14px; }
-  [data-lay="phone"] .backbtn{ min-height:44px; display:inline-flex; align-items:center; }   /* v2.3: no browser chrome in the installed app — the back control must be a real touch target */
-  [data-lay="phone"] .conn-mini[data-gh="openhealth"]{ min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:0 14px; }   /* v2.3 (panel): primary navigation, not a de-emphasised link */
-  details.hdisc summary{ cursor:pointer; font-size:12px; font-weight:700; color:var(--ink-2); padding:6px 0; min-height:32px; }
-  .hage{ font-size:10.5px; color:var(--muted); }
-  .hribbon[data-gh="openhealth"]{ position:relative; cursor:pointer; }
-  .hgo{ position:absolute; right:2px; top:50%; transform:translateY(-50%); font-size:15px; font-weight:700; color:var(--faint); pointer-events:none; }
   .pf-bar{ height:8px; background:var(--hair-2); border-radius:6px; overflow:hidden; margin:10px 0 0; }
   .pf-bar.small{ height:6px; margin:6px 0 0; }
   .pf-fill{ height:100%; background:var(--pc, var(--p)); border-radius:6px; transition:width .4s var(--ease); }
@@ -776,7 +759,6 @@ const isLap = () => { const f=document.getElementById('frame'); return (f?f.clie
 const view = document.getElementById('view');
 
 function render(){
-  _healthRenderDeferred=false;                     /* v2.3: any render satisfies a deferred health redraw */
   document.body.className = 'v-'+ui.view + (ui.hideDone?' hidedone':'');
   document.body.dataset.lay = isLap()?'lap':'phone';
   if(ui.view!=='week' && ui.view!=='weekplus' && ui.selMode){ ui.selMode=false; ui.sel.clear(); }
@@ -791,7 +773,6 @@ function render(){
   else if(ui.view==='reminders') renderReminders();
   else if(ui.view==='shopping') renderShopping();
   else if(ui.view==='review') renderReview();
-  else if(ui.view==='health') renderHealth();
   else renderMore();
   syncAddbar();
   updateSyncBadge();
@@ -821,7 +802,7 @@ function tabIcon(kind){
   if(kind==='dots') return '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
   return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/></svg>';
 }
-function activeTab(){ return ui.view==='project'?'projects':(ui.view==='reminders'?'reminders':(ui.view==='weekplus'?'weekplus':(ui.view==='health'?'today':ui.view))); }
+function activeTab(){ return ui.view==='project'?'projects':(ui.view==='reminders'?'reminders':(ui.view==='weekplus'?'weekplus':ui.view)); }
 function renderChrome(){
   const at=activeTab();
   document.getElementById('tabbar').innerHTML = TABS.map(t=>
@@ -979,7 +960,7 @@ function renderWeek(){
   const tag = isThis?'this week':(isPast?'past':'ahead');
 
   if(isLap()){
-    const mkCol=(di)=>{ const d=wk.days[di]; const iso=addDays(ui.weekKey,di); const isToday=(ui.weekKey===todayMonday && di===todayDayIdx()); return `<div class="col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${iso<=todayISO&&healthDaySrc(iso)==='gh'?'<span class="hsrc" title="Numbers from Google Health">G</span>':''}${iso<=todayISO?`<span class="dayhx"><button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>${weekHealthChipsHTML(iso)}</span>`:''}</div>${apptsBlock(iso)}${laneHTML(wk,di,'personal')}${laneHTML(wk,di,'work')}</div>`; };
+    const mkCol=(di)=>{ const d=wk.days[di]; const iso=addDays(ui.weekKey,di); const isToday=(ui.weekKey===todayMonday && di===todayDayIdx()); return `<div class="col ${isToday?'today':''}"><div class="colhead"><span class="dw">${d.dow}</span><span class="nn">${d.n}</span>${iso<=todayISO?`<span class="dayhx"><button class="gymdot ${DB.gym&&DB.gym[iso]?'on':''}" data-act="gym" data-date="${iso}" title="gym day" aria-label="gym day toggle">🏋</button>${weekHealthChipsHTML(iso)}</span>`:''}</div>${apptsBlock(iso)}${laneHTML(wk,di,'personal')}${laneHTML(wk,di,'work')}</div>`; };
     const weekRow=[0,1,2,3,4].map(mkCol).join('');
     const wkndCol=`<div class="col wkd"><div class="colhead"><span class="dw">Weekend</span><span class="nn">either day</span></div>${laneHTML(wk,'W','personal')}${laneHTML(wk,'W','work')}</div>`;
     const odCol=overdueColHTML('');
@@ -1149,9 +1130,9 @@ function renderReview(){
   const card = (k,v,s)=>`<div style="flex:1;background:var(--paper);border:1px solid var(--hair);border-radius:14px;padding:14px;box-shadow:var(--shadow-1)"><div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:740;color:var(--muted)">${k}</div><div style="font-size:24px;font-weight:760;margin-top:3px">${v}</div><div style="font-size:11.5px;color:var(--muted);font-weight:560">${s}</div></div>`;
   const wrap = isLap()?'<div class="lapwrap" style="max-width:760px">':'';
   const balance = tot? (wt>pt*1.6?'work-heavy':(pt>wt*1.6?'personal-heavy':'fairly balanced')) : 'quiet';
-  const realHealth=(DB.health&&DB.health.source==='fitbit')||ghDataPresent();   /* v2.3: gh data is real data */
-  const sdW=weekSleepDebt(ui.weekKey); let exD=0, stepSum=0, stepN=0; for(let i=0;i<7;i++){ const iso=addDays(ui.weekKey,i); const RR=healthDayR(iso); const r=RR&&RR.rec; const g=DB.gym&&DB.gym[iso]; if((RR&&RR.src!=='sample'&&r.exercised)||g)exD++; if(r&&r.steps!=null){ stepSum+=r.steps; stepN++; } }
-  const bodyCard = `<div class="eyebrow">This week · body${(DB.health&&DB.health.source==='sample'&&!ghDataPresent())?' · sleep/steps are sample data':''}<span class="ln"></span></div>
+  const realHealth=DB.health&&DB.health.source!=='sample';
+  const sdW=weekSleepDebt(ui.weekKey); let exD=0, stepSum=0, stepN=0; for(let i=0;i<7;i++){ const iso=addDays(ui.weekKey,i); const r=healthDay(iso); const g=DB.gym&&DB.gym[iso]; if((realHealth&&r&&r.exercised)||g)exD++; if(r&&r.steps!=null){ stepSum+=r.steps; stepN++; } }
+  const bodyCard = `<div class="eyebrow">This week · body${DB.health&&DB.health.source==='sample'?' · sleep/steps are sample data':''}<span class="ln"></span></div>
     <div class="hribbon" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr))">
       <div class="hstat"><span class="hk">Sleep debt</span><span class="hv">${sdW.total>0?'−'+fmtHM(sdW.total):'0m'}</span><span class="hs ${sdW.total>0?'deficit':'ok'}">over ${sdW.tracked} night${sdW.tracked!==1?'s':''}</span></div>
       <div class="hstat"><span class="hk">Exercise / gym</span><span class="hv">${exD}</span><span class="hs">days this week</span></div>
@@ -1413,30 +1394,15 @@ async function gPut(path, text){ const t=await getToken(OD, odState); const r=aw
 // merge cloud + local health rather than clobbering: a cloud copy that's newer on TASKS can still
 // carry staler HEALTH — union the day maps, newer health.updatedAt side wins conflicting days
 function mergeHealth(remoteH){
-  /* v2.3: the gh map is captured FIRST and arbitrated by ITS OWN updatedAt, fully independent
-     of the fitbit map — a remote that is newer on tasks/fitbit but has no gh (or an older gh)
-     must never delete or out-rank the local gh. Both maps are unions; nothing is clobbered. */
-  const lg=(DB.health&&DB.health.gh&&DB.health.gh.days)?DB.health.gh:null;
-  const rg=(remoteH&&remoteH.gh&&remoteH.gh.days)?remoteH.gh:null;
-  let gh=null;
-  if(lg&&rg){
-    const lU=+lg.updatedAt||0, rU=+rg.updatedAt||0;
-    const base=lU>=rU?(rg.days||{}):(lg.days||{}), top=lU>=rU?(lg.days||{}):(rg.days||{});
-    gh={ updatedAt:Math.max(lU,rU), dailiesAt:Math.max(+lg.dailiesAt||0,+rg.dailiesAt||0), days:Object.assign({}, base, top) };
-  } else gh=lg||rg||null;
-  if(remoteH){
-    const localFit = DB.health && DB.health.source==='fitbit';
-    const remoteFit = remoteH.source==='fitbit';
-    if(localFit && !remoteFit){ /* never let sample data erase real data — keep the local fitbit map */ }
-    else if(!localFit){ DB.health=remoteH; }
-    else {
-      const lU=+DB.health.updatedAt||0, rU=+remoteH.updatedAt||0;
-      const base = lU>=rU ? (remoteH.days||{}) : (DB.health.days||{});
-      const top  = lU>=rU ? (DB.health.days||{}) : (remoteH.days||{});
-      DB.health = { source:'fitbit', updatedAt:Math.max(lU,rU), days:Object.assign({}, base, top) };
-    }
-  }
-  if(gh){ if(!DB.health) DB.health={ source:'none', updatedAt:0, days:{} }; DB.health.gh=gh; }
+  if(!remoteH) return;
+  const localFit = DB.health && DB.health.source==='fitbit';
+  const remoteFit = remoteH.source==='fitbit';
+  if(localFit && !remoteFit) return;                                   // never let sample data erase real data
+  if(!localFit){ DB.health=remoteH; return; }
+  const lU=+DB.health.updatedAt||0, rU=+remoteH.updatedAt||0;
+  const base = lU>=rU ? (remoteH.days||{}) : (DB.health.days||{});
+  const top  = lU>=rU ? (DB.health.days||{}) : (remoteH.days||{});
+  DB.health = { source:'fitbit', updatedAt:Math.max(lU,rU), days:Object.assign({}, base, top) };
 }
 // conditional PUT: only succeeds if the cloud file still has the ETag we last saw — a 412 means
 // another device wrote first, and we must NEVER blindly overwrite it (the stale-overwrite class)
@@ -1663,7 +1629,7 @@ async function odPullCheck(reason){
   }catch(e){ /* offline or auth hiccup — stay quiet, badge reflects connection state */ }
   odState.pulling=false; updateSyncBadge();
 }
-document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ odPullCheck('visible'); if(fitState.connected) refreshHealth(); refreshGH(); } });
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ odPullCheck('visible'); if(fitState.connected) refreshHealth(); } });
 window.addEventListener('focus', function(){ odPullCheck('focus'); });
 window.addEventListener('online', function(){ flushSync(); odPullCheck('online'); });
 let _syncT, _pushPending=false;
@@ -1849,7 +1815,6 @@ async function initOneDrive(){
     if(calState.connected){ refreshCalendar().then(()=>render()); }
     if(odState.connected && odState.live){ odPullCheck('init'); }   // every ordinary open now checks the cloud first
     if(fitState.connected){ refreshHealth(); }                      // top up today's health numbers on open
-    refreshGH();                                                    // v2.3: per-provider guards + throttle make the boot double-fire a no-op
   }
 }
 
@@ -1895,10 +1860,7 @@ function renderConnectionsInner(){
     </div>`;
   }
   const stub=(t,d)=>`<div class="conn"><div class="conn-h"><div><div class="conn-t">${t}</div><div class="conn-d">${d}</div></div><span class="conn-badge">Next</span></div></div>`;
-  /* v2.3: pre-warm the GIS script while the card is on screen (non-standalone, online only)
-     so the Connect tap still holds its user-gesture activation when the popup opens */
-  if(!isStandalonePWA() && navigator.onLine && DEPLOY_OK && !window.__navPending){ try{ loadGIS().catch(()=>{}); }catch(e){} }
-  return od + calCardInner() + fitCardInner() + ghCardInner() + claudeCardInner();
+  return od + calCardInner() + fitCardInner() + claudeCardInner();
 }
 
 /* ============================================================
@@ -2025,22 +1987,6 @@ document.addEventListener('click', e=>{
   else if(a==='disconnect') fitDisconnect();
   else if(a==='refresh'){ refreshHealth(true).then(()=>{ if(ui.view==='more')renderMore(); else render(); flashToast(fitState.error?fitState.error:'Health data refreshed ✓'); }); }
 });
-// Google Health actions (delegated) — v2.3
-document.addEventListener('keydown', e=>{
-  if(e.key!=='Enter'&&e.key!==' ') return;
-  const b=e.target.closest&&e.target.closest('.hribbon[data-gh="openhealth"]');
-  if(b){ e.preventDefault(); go('health'); }
-});
-document.addEventListener('click', e=>{
-  const b=e.target.closest('[data-gh]'); if(!b) return;
-  const a=b.dataset.gh;
-  if(a==='connect') ghConnect('connect');
-  else if(a==='resume') ghConnect('connect', true);
-  else if(a==='consent') ghConnect('consent');
-  else if(a==='disconnect') ghDisconnect();
-  else if(a==='refresh'){ refreshGH(true).then(()=>{ if(ui.view==='more')renderMore(); else render(); flashToast(ghPrimaryErr()||'Google Health refreshed ✓'); }); }
-  else if(a==='openhealth') go('health');
-});
 // Outlook calendar actions (delegated)
 document.addEventListener('click', e=>{
   const b=e.target.closest('[data-cal]'); if(!b) return;
@@ -2060,7 +2006,6 @@ function rerenderInPlace(){
   else if(ui.view==='reminders') renderReminders();
   else if(ui.view==='shopping') renderShopping();
   else if(ui.view==='review') renderReview();
-  else if(ui.view==='health') renderHealth();
   else renderMore();
 }
 
@@ -2199,7 +2144,7 @@ function doPullPools(){
    ============================================================ */
 const dlg=document.getElementById('dlg');
 function openDialog(html){ dlg.innerHTML=`<div class="dlg">${html}</div>`; dlg.showModal(); const f=dlg.querySelector('input,textarea'); if(f){ setTimeout(()=>{f.focus(); if(f.select)f.select();},30); } }
-function closeDialog(){ dlg.close(); if(_healthRenderDeferred) renderDeferred(); }   /* v2.3: flush a health redraw parked behind the dialog */
+function closeDialog(){ dlg.close(); }
 // themed yes/no — replaces native confirm() so every confirmation looks like the app
 function openConfirm(h, p, yesLabel, onYes){
   openDialog(`<h3>${h}</h3><p>${p}</p><div class="acts"><button class="cancel" data-x="no">Cancel</button><button class="save" data-x="yes">${yesLabel}</button></div>`);
@@ -2797,7 +2742,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v2.3';
+const APP_VERSION='v2.2';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -2904,9 +2849,9 @@ function fitCardInner(){
     return `<div class="conn">
       <div class="conn-h"><div><div class="conn-t">Fitbit · sleep, steps & calories</div><div class="conn-d">Read-only · one authorise · token lasts until the API retires (Sept)</div></div><span class="conn-badge">${fitState.error?'Expired':'Not connected'}</span></div>
       <button class="conn-btn" data-fit="connect">Connect Fitbit</button>
-      ${fitState.error?`<div class="conn-warn">${esc(fitState.error)} <button class="linkbtn" data-fit="disconnect">Disconnect</button></div>`:''}   <!-- v2.3 (panel): when the API retires, the nag must be dismissible — data already gathered stays -->
+      ${fitState.error?`<div class="conn-warn">${esc(fitState.error)}</div>`:''}
       ${!DEPLOY_OK?`<div class="conn-d" style="margin-top:8px">Runs on the live site (not in this preview).</div>`:''}
-      <div class="conn-d" style="margin-top:8px">Retires Sept 2026 — Google Health runs beside it until then (its card is below).</div>
+      <div class="conn-d" style="margin-top:8px">Google Health takes over after Fitbit's API retires — groundwork already in this build.</div>
     </div>`;
   }
   const days=(DB.health&&DB.health.source==='fitbit')?Object.keys(DB.health.days||{}).length:0;
@@ -2915,7 +2860,6 @@ function fitCardInner(){
     <div class="conn-h"><div><div class="conn-t">Fitbit <span class="conn-live" style="color:var(--good);background:var(--good-wash);border-color:var(--good)">● live</span></div><div class="conn-d">${days} day${days!==1?'s':''} of sleep/steps/calories${upd}</div></div><span class="conn-badge">read-only</span></div>
     <div class="conn-row2"><button class="conn-btn ghost2" data-fit="refresh">Refresh now</button><button class="conn-btn ghost2" data-fit="disconnect">Disconnect</button></div>
     ${fitState.error?`<div class="conn-warn">${esc(fitState.error)} <button class="linkbtn" data-fit="connect">Reconnect</button></div>`:''}
-    <div class="conn-d" style="margin-top:8px">Retires Sept 2026 — Google Health runs beside it until then.</div>
   </div>`;
 }
 function claudeCardInner(){
@@ -2930,569 +2874,14 @@ const SLEEP_TARGET=480, STEP_GOAL=10000;
    Read-only scopes. When the API retires this card simply reports expired; Google Health follows. */
 const FIT={ clientId:'23PYHQ', authorize:'https://www.fitbit.com/oauth2/authorize', api:'https://api.fitbit.com', scopes:'activity sleep', tokKey:'wp:fit:tok', stateKey:'wp:fit:state' };
 const fitState={ connected:false, error:null, refreshing:false };
-/* ============================ GH-BEGIN ============================
-   v2.3: GOOGLE HEALTH provider, beside Fitbit until its Sept 2026 turn-down.
-   GIS token model (popup, 1-hour tokens, no refresh tokens in a browser, no
-   redirect legs — nothing in this block may ever navigate or touch history).
-   Console config done 14 Aug 2026: project on tomhunter848@gmail.com, API
-   enabled, consent External+Testing (personal-use — never publish), test user
-   848, three readonly scopes, JS origin = this Pages origin.
-   Hard rules (master handoff §C) all apply: per-GROUP all-or-nothing fetches
-   (strip group: 4 dailyRollUps + sleep · dailies group: 5 daily lists), missing
-   never overwrites today/yesterday, unattended persists via saveLocalOnly ONLY,
-   failures loud, calories alone never proves worn, token handling storage-inert. */
-const GH={
-  clientId:'636974169783-v1ni7gjqq6atp7oue424sp1a4n287mvb.apps.googleusercontent.com',
-  scopes:[ 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
-           'https://www.googleapis.com/auth/googlehealth.sleep.readonly',
-           'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly' ],
-  gsi:'https://accounts.google.com/gsi/client',
-  api:'https://health.googleapis.com/v4/users/me/dataTypes/',
-  proxy:'',                       // CORS fallback seam: set to a worker URL prefix and every call reroutes; nothing else changes
-  tokKey:'wp:gh:tok', account:'tomhunter848@gmail.com'
-};
-const ghState={ refreshing:false, needsTap:false, permission:null, stripErr:null, dailiesErr:null, connErr:null, zeroDays:false };
-let _ghLast=0, _ghDismiss=0, _gisLoading=null, _healthRenderDeferred=false;
-/* The installed iOS PWA cannot complete a GIS popup (no scriptable popup channel, isolated
-   cookie jar) — there the phone is a SYNC CONSUMER: gh data arrives via OneDrive merge. */
-function isStandalonePWA(){ try{ return navigator.standalone===true || (window.matchMedia&&matchMedia('(display-mode: standalone)').matches); }catch(e){ return false; } }
-function ghRawTok(){ try{ return JSON.parse(localStorage.getItem(GH.tokKey)||'null'); }catch(e){ return null; } }
-function ghHasGrant(){ const t=ghRawTok(); return !!(t&&t.access); }
-function ghToken(){ const t=ghRawTok(); if(!t||!t.access) return null; if(Date.now()>(+t.exp||0)-60000) return null; return t; }
-function ghDataPresent(){ return !!(DB.health&&DB.health.gh&&DB.health.gh.days&&Object.keys(DB.health.gh.days).length); }
-function ghDay(iso){ return (DB.health&&DB.health.gh&&DB.health.gh.days||{})[iso]||null; }
-function ghStale6h(){ const u=DB.health&&DB.health.gh&&+DB.health.gh.updatedAt||0; return Date.now()-u>6*60*60*1000; }
-/* ---- ONE resolved per-day accessor for every reader (ribbon, chips, Review, debt, exercise
-   counts). FIT preferred while alive; GH fills; sample counts as ABSENT the moment gh exists. */
-function healthDayR(iso){
-  const H=DB.health; if(!H) return null;
-  if(H.source==='fitbit'){ const f=(H.days||{})[iso]; if(f) return {rec:f, src:'fit'}; }
-  const g=ghDay(iso); if(g) return {rec:g, src:'gh'};
-  if(H.source==='sample' && !ghDataPresent()){ const s=(H.days||{})[iso]; if(s) return {rec:s, src:'sample'}; }
-  return null;
-}
-function healthDaySrc(iso){ const R=healthDayR(iso); return R?R.src:null; }
-/* ---- GIS loader: lazy, single-flight, 10s timeout, never at boot, never a boot dependency ---- */
-function loadGIS(){
-  if(window.google&&google.accounts&&google.accounts.oauth2) return Promise.resolve();
-  if(_gisLoading) return _gisLoading;
-  _gisLoading=new Promise((res,rej)=>{
-    const s=document.createElement('script'); s.src=GH.gsi; s.async=true;
-    const to=setTimeout(()=>{ _gisLoading=null; try{s.remove();}catch(e){} rej(new Error('gis-timeout')); },10000);
-    s.onload=()=>{ clearTimeout(to); res(); };
-    s.onerror=()=>{ clearTimeout(to); _gisLoading=null; try{s.remove();}catch(e){} rej(new Error('gis-load')); };
-    document.head.appendChild(s);
-  });
-  return _gisLoading;
-}
-/* ---- token acquisition: USER GESTURE ONLY. An automatic path may never open UI (E1's law,
-   popup edition). 30s watchdog so a hung popup ends loud, never a spinner. ---- */
-function ghAcquireToken(mode){   // 'connect' (default prompt, self-resolves silently when consented) | 'consent' (re-tick scopes)
-  if(window.__navPending) return Promise.reject(Object.assign(new Error('nav-pending'),{gh:'busy'}));
-  return loadGIS().then(()=>new Promise((res,rej)=>{
-    let settled=false; const wd=setTimeout(()=>{ if(!settled){ settled=true; rej(Object.assign(new Error('popup-timeout'),{gh:'timeout'})); } },30000);
-    const done=(fn,v)=>{ if(settled) return; settled=true; clearTimeout(wd); fn(v); };
-    let tc;
-    try{
-      tc=google.accounts.oauth2.initTokenClient({
-        client_id:GH.clientId, scope:GH.scopes.join(' '), hint:GH.account,
-        callback:t=>{ (t&&t.access_token)?done(res,t):done(rej,Object.assign(new Error((t&&t.error)||'token-error'),{gis:t})); },
-        error_callback:e=>done(rej,Object.assign(new Error((e&&e.type)||'popup-error'),{gis:e}))
-      });
-    }catch(e){ return done(rej,e); }
-    const opts={}; if(mode==='consent') opts.prompt='consent';
-    try{ tc.requestAccessToken(opts); }catch(e){ done(rej,e); }
-  }));
-}
-function ghScopeShort(s){ return /sleep/.test(s)?'sleep':(/activity/.test(s)?'activity':'health metrics'); }
-/* storage-inert: writes ONLY wp:gh:tok — never the DB, never savedAt/rev (mutation-tested) */
-function ghStoreToken(t){
-  const have=String(t.scope||'').split(/\s+/);
-  const missing=GH.scopes.filter(s=>!have.includes(s));
-  if(missing.length){
-    ghState.permission='Google didn’t allow the '+missing.map(ghScopeShort).join(' + ')+' permission'+(missing.length>1?'s':'')+', so data can’t load. Tap Fix permissions and tick every box.';
-    return false;
-  }
-  try{ localStorage.setItem(GH.tokKey, JSON.stringify({access:t.access_token, exp:Date.now()+((+t.expires_in||3600)*1000), scope:t.scope||''})); }
-  catch(e){ ghState.connErr='Couldn’t keep the sign-in (browser storage full?) — tap to try again'; return false; }   /* adversarial review: a quota failure must not end the connect silently */
-  ghState.needsTap=false; ghState.permission=null; ghState.connErr=null; _ghDismiss=0;
-  return true;
-}
-async function ghConnect(mode, isResume){
-  if(isStandalonePWA()) return;                       // the card never offers this in the installed app
-  if(!DEPLOY_OK){ flashToast('Google Health connect runs on your live GitHub Pages site'); return; }
-  ghState.connErr=null;
-  try{
-    const t=await ghAcquireToken(mode==='consent'?'consent':'connect');
-    if(!ghStoreToken(t)){ if(ui.view==='more')renderMore(); return; }
-    flashToast(isResume?'Google Health resumed ✓':'Google Health connected ✓ — running beside Fitbit until September');
-    if(ui.view==='more')renderMore();
-    refreshGH(true);
-  }catch(e){
-    if(ghToken()) return;   /* panel (iPhone QA): a later attempt already won — a stale watchdog must not latch an error onto a live connection */
-    const type=String(e&&e.message||'');
-    if(/popup_failed_to_open/.test(type)) ghState.connErr='Popup blocked — tap again; allow popups for this site if asked';
-    else if(/popup_closed|access_denied|interaction_required/.test(type)){
-      _ghDismiss++;
-      if(_ghDismiss>=2) ghState.connErr='Google sign-in cancelled twice — if Google said “access denied”, sign in as tomhunter848@gmail.com — the only account this test app allows.';
-      else flashToast('Google sign-in cancelled — nothing changed');
-    }
-    else if(/gis-load|gis-timeout/.test(type)) ghState.connErr='Couldn’t load Google sign-in — check connection and tap again';
-    else if(/popup-timeout/.test(type)) ghState.connErr='Google sign-in didn’t complete — tap to try again';
-    else if(/nav-pending/.test(type)) ghState.connErr='Another sign-in is in progress — try again in a moment';
-    else ghState.connErr='Google sign-in failed ('+type.slice(0,60)+') — tap to try again';
-    if(ui.view==='more')renderMore();
-  }
-}
-function ghDisconnect(){
-  try{ localStorage.removeItem(GH.tokKey); }catch(e){}
-  ghState.needsTap=false; ghState.permission=null; ghState.stripErr=null; ghState.dailiesErr=null; ghState.connErr=null; ghState.zeroDays=false;
-  if(ui.view==='more')renderMore();
-  flashToast('Google Health disconnected — data already gathered stays');
-}
-/* ---- transport seam + error taxonomy: auth / permission / transient / drift ---- */
-const GH_RELNAME={ 'steps':'steps', 'total-calories':'calories', 'active-minutes':'active minutes', 'active-zone-minutes':'zone minutes', 'sleep':'sleep', 'daily-resting-heart-rate':'resting heart rate', 'daily-heart-rate-variability':'HRV', 'daily-respiratory-rate':'breathing rate', 'daily-oxygen-saturation':'SpO2', 'daily-vo2-max':'VO2 max' };
-function ghRelName(rel){ const k=String(rel||'').split('/')[0]; return GH_RELNAME[k]||k; }
-function ghErr(cls, msg, rel){ const e=new Error(msg); e.cls=cls; e.call=rel; return e; }
-async function ghFetch(rel, body){
-  const t=ghToken(); if(!t) throw ghErr('auth','gh-token',rel);
-  let r;
-  try{
-    r=await fetch((GH.proxy||GH.api)+rel, body
-      ? {method:'POST', headers:{Authorization:'Bearer '+t.access, 'Content-Type':'application/json'}, body:JSON.stringify(body)}
-      : {headers:{Authorization:'Bearer '+t.access}});
-  }catch(err){ throw ghErr('transient','network',rel); }
-  if(r.status===401){ try{ localStorage.removeItem(GH.tokKey); }catch(e){} throw ghErr('auth','401',rel); }
-  if(r.status===403){
-    let j=null; try{ j=await r.json(); }catch(e){}
-    const blob=JSON.stringify((j&&j.error)||{});
-    if(/ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficient/i.test(blob)){
-      const e=ghErr('permission','403-scope',rel);
-      e.msg='Google didn’t allow the '+ghRelName(rel)+' permission, so data can’t load. Tap Fix permissions and tick every box.'; throw e;
-    }
-    if(/quota|rate/i.test(blob)) throw ghErr('transient','403-quota',rel);
-    const reason=(j&&j.error&&(j.error.status||j.error.message))||'';
-    const e=ghErr('permission','403',rel);
-    e.msg='Google refused access (403'+(reason?': '+String(reason).slice(0,80):'')+'). Check you’re signed in as tomhunter848@gmail.com — if it persists it’s a Google-side setting, not this planner.'; throw e;
-  }
-  if(r.status===429) throw ghErr('transient','429',rel);
-  if(!r.ok) throw ghErr(r.status>=500?'transient':'drift', String(r.status), rel);
-  let j; try{ j=await r.json(); }catch(err){ throw ghErr('drift','bad-json',rel); }
-  if(typeof j!=='object'||j===null||Array.isArray(j)) throw ghErr('drift','bad-body',rel);
-  return j;
-}
-/* ---- parsers. The line: tolerate ABSENCE (null — a fact about the world) and ADDITIONS
-   (ignored); never coerce PRESENT-BUT-WRONG — that aborts the group (drift), because coerced
-   wrongness is how data goes silently bad. ---- */
-function ghCivil(iso){ const p=iso.split('-').map(Number); return { date:{ year:p[0], month:p[1], day:p[2] } }; }
-function ghCivilDay(c, rel){
-  if(!c) return null;
-  if(typeof c==='string'){ const m=c.match(/^(\d{4})-(\d{2})-(\d{2})/); return m? m[1]+'-'+m[2]+'-'+m[3] : null; }
-  const d=c.date||c;
-  if(d && Number.isInteger(d.year) && Number.isInteger(d.month) && Number.isInteger(d.day))
-    return d.year+'-'+String(d.month).padStart(2,'0')+'-'+String(d.day).padStart(2,'0');
-  return null;
-}
-function ghNum(v, rel){ if(v==null) return null; const n=Number(v); if(!Number.isFinite(n)||n<0) throw ghErr('drift','bad-value',rel); return n; }
-function ghFirst(v, keys, rel){ for(const k of keys){ if(v && v[k]!=null) return ghNum(v[k],rel); } return null; }
-/* strict variant (adversarial review): the union OBJECT is present but carries none of the
-   known fields — that is a wholesale shape change, and nulling it would let "renamed by
-   Google" silently clear stored older days. Loud beats silent: abort the group as drift. */
-function ghFirstReq(v, keys, rel){ const n=ghFirst(v,keys,rel); if(n==null && v && typeof v==='object' && !keys.some(k=>k in v)) throw ghErr('drift','shape-renamed',rel); return n; }
-function ghUnion(p, tag){ return (p&&p[tag]) || (p&&p.value&&p.value[tag]) || null; }
-function ghRollupDays(j, rel, extract){
-  const arr = j.rollupDataPoints==null ? [] : j.rollupDataPoints;
-  if(!Array.isArray(arr)) throw ghErr('drift','bad-shape',rel);
-  const out={};
-  for(const p of arr){
-    const iso=ghCivilDay(p&&p.civilStartTime, rel);
-    if(!iso) throw ghErr('drift','bad-date',rel);
-    out[iso]=extract(p);
-  }
-  return out;
-}
-function ghSleepEndDay(iv, rel){
-  if(!iv) return null;
-  const civ=ghCivilDay(iv.civilEndTime, rel); if(civ) return civ;
-  const raw=iv.endTime; if(!raw) return null;
-  if(/[zZ]$|[+-]\d\d:\d\d$/.test(raw)){                                  // zoned instant: shift to civil
-    const t=Date.parse(raw); if(!Number.isFinite(t)) return null;
-    const off=parseFloat(iv.endUtcOffset||'0')||0;                         // Duration "3600s"
-    const d=new Date(t+off*1000);
-    return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
-  }
-  return ghCivilDay(raw, rel);                                             // naive timestamp is already civil
-}
-function ghParseSleepPage(j, rel, acc){
-  const arr = j.dataPoints==null ? [] : j.dataPoints;
-  if(!Array.isArray(arr)) throw ghErr('drift','bad-shape',rel);
-  for(const p of arr){
-    const s=p&&p.sleep; if(!s) continue;                                 // additions ignored
-    /* probe 17 Aug: live sessions carry NO civil fields — derive the civil end date from
-       endTime + endUtcOffset (a 00:30 local end is 23:30Z the previous day; the offset is
-       what makes the night file under the right morning). Naive timestamps are already civil. */
-    const iso=ghSleepEndDay(s.interval, rel);
-    if(!iso) throw ghErr('drift','bad-date',rel);
-    let mins=null;
-    if(s.summary && s.summary.minutesAsleep!=null){ const n=Number(s.summary.minutesAsleep); if(Number.isFinite(n)) mins=n; }
-    if(mins==null && Array.isArray(s.stages)){                            // tolerant fallback: sum non-awake stage time
-      let m=0, got=false;
-      for(const st of s.stages){ if(st&&st.startTime&&st.endTime){ const a=Date.parse(st.startTime), b=Date.parse(st.endTime);
-        if(Number.isFinite(a)&&Number.isFinite(b)&&b>a&&!/AWAKE/i.test(st.type||'')){ m+=(b-a)/60000; got=true; } } }
-      if(got) mins=Math.round(m);
-    }
-    if(mins==null) throw ghErr('drift','sleep-no-duration',rel);          // a night with no derivable duration is drift, never a silent skip
-    /* probe 17 Aug: nights carry metadata.mainSleep:true; naps simply LACK it. A session is a
-       NIGHT only when the metadata says so (mainSleep:true or nap:false); metadata absent
-       entirely → treat as a night (the docs' shape). Everything else is a nap. */
-    const night = !s.metadata || s.metadata.mainSleep===true || s.metadata.nap===false;
-    const nap = !night;
-    const row=acc[iso]||(acc[iso]={});
-    if(nap){ if(mins>0) row.napMins=(row.napMins||0)+mins; }
-    else{
-      if(mins>0) row.sleepMins=(row.sleepMins||0)+mins;                   // 0 = night not tracked, never "0h slept"
-      if(s.type) row.sleepType=s.type;
-      const sg=s.summary && s.summary.stagesSummary;
-      if(Array.isArray(sg)){
-        const o=row.stages||{deep:0,light:0,rem:0,awake:0}; let any=false;
-        for(const x of sg){
-          const t=String((x&&(x.stage||x.type))||'').toUpperCase();
-          let m2=null; for(const k of ['minutes','durationMinutes','sumMinutes']){ if(x&&x[k]!=null){ const n=Number(x[k]); if(Number.isFinite(n)){ m2=n; break; } } }
-          if(m2==null && x && x.duration!=null){ const n=parseFloat(x.duration); if(Number.isFinite(n)) m2=Math.round(n/60); }   // Duration "1234s"
-          if(m2==null) continue;
-          if(t==='DEEP'){o.deep+=m2;any=true;} else if(t==='LIGHT'){o.light+=m2;any=true;}
-          else if(t==='REM'){o.rem+=m2;any=true;} else if(t==='AWAKE'){o.awake+=m2;any=true;}
-          // CLASSIC's ASLEEP/RESTLESS are deliberately NOT shovelled into deep/light/rem
-        }
-        if(any) row.stages=o;
-      }
-    }
-  }
-  return j.nextPageToken||null;
-}
-/* ---- group 1: the strip (steps, calories, active minutes, AZM, sleep) — all-or-nothing ---- */
-async function ghFetchStrip(startIso, endExIso){
-  const range={ range:{ start:ghCivil(startIso), end:ghCivil(endExIso) }, windowSizeDays:1 };
-  const steps=ghRollupDays(await ghFetch('steps/dataPoints:dailyRollUp',range),'steps',
-    p=>{ const v=ghUnion(p,'steps'); if(v==null) return null; return (typeof v==='object')?ghFirstReq(v,['countSum','count'],'steps'):ghNum(v,'steps'); });   /* probe 17 Aug: live field is countSum (int64 string) */
-  const cals=ghRollupDays(await ghFetch('total-calories/dataPoints:dailyRollUp',range),'total-calories',
-    p=>{ const v=ghUnion(p,'totalCalories'); if(v==null) return null;
-         if(typeof v!=='object') return ghNum(v,'total-calories');
-         const n=ghFirst(v,['kcalSum','kcal'],'total-calories'); if(n!=null) return n;
-         if(v.energy) return ghFirstReq(v.energy,['kcal','kilocalories'],'total-calories');
-         return ghFirstReq(v,['kcalSum','kcal'],'total-calories'); });
-  const acts=ghRollupDays(await ghFetch('active-minutes/dataPoints:dailyRollUp',range),'active-minutes',
-    p=>{ const v=ghUnion(p,'activeMinutes'); if(v==null) return null;
-         const arr=v.activeMinutesRollupByActivityLevel;
-         if(Array.isArray(arr)){ let m=0, got=false;
-           for(const x of arr){ if(/MODERATE|VIGOROUS|FAIRLY|VERY/i.test(String(x&&x.activityLevel||''))){ m+=ghNum(x.activeMinutesSum,'active-minutes')||0; got=true; } }
-           return got?m:null; }
-         return ghFirstReq(v,['sum','minutes','activeMinutesRollupByActivityLevel'],'active-minutes'); });
-  const azms=ghRollupDays(await ghFetch('active-zone-minutes/dataPoints:dailyRollUp',range),'active-zone-minutes',
-    p=>{ const v=ghUnion(p,'activeZoneMinutes'); if(v==null) return null;
-         const f=ghFirst(v,['sumInFatBurnHeartZone'],'active-zone-minutes'),
-               c=ghFirst(v,['sumInCardioHeartZone'],'active-zone-minutes'),
-               k=ghFirst(v,['sumInPeakHeartZone'],'active-zone-minutes');
-         if(f==null&&c==null&&k==null){
-           if(typeof v==='object' && !('sumInFatBurnHeartZone' in v) && !('sumInCardioHeartZone' in v) && !('sumInPeakHeartZone' in v)) throw ghErr('drift','shape-renamed','active-zone-minutes');
-           return null;
-         }
-         return (f||0)+2*(c||0)+2*(k||0); });                             // Fitbit AZM weighting: moderate ×1, cardio/peak ×2
-  const sleepAcc={};
-  let pageToken=null, pages=0;
-  do{
-    const f='sleep.interval.civil_end_time >= "'+startIso+'" AND sleep.interval.civil_end_time < "'+endExIso+'"';
-    const rel='sleep/dataPoints?pageSize=25&filter='+encodeURIComponent(f)+(pageToken?'&pageToken='+encodeURIComponent(pageToken):'');
-    pageToken=ghParseSleepPage(await ghFetch(rel),'sleep',sleepAcc);
-    pages++;
-    if(pageToken && pages>=3) throw ghErr('drift','sleep-pages','sleep');  // an unfollowed page = a silently dropped night; never ignore
-  }while(pageToken);
-  const days={};
-  for(let iso=startIso; iso<endExIso; iso=addDays(iso,1)){
-    const stp=steps[iso]!=null?steps[iso]:null, cal=cals[iso]!=null?cals[iso]:null,
-          act=acts[iso]!=null?acts[iso]:null, az=azms[iso]!=null?azms[iso]:null;
-    const sl=sleepAcc[iso]||null;
-    const slp=(sl&&sl.sleepMins>0)?Math.round(sl.sleepMins):null;
-    /* measured-day gate: calories alone never proves the tracker was worn (§C6) */
-    const measured=(stp>0)||(act>0)||(slp>0)||(az>0);
-    if(!measured) continue;
-    days[iso]={ steps:stp, caloriesOut:(cal==null||cal<=0)?null:Math.round(cal), activeMins:act,
-                sleepMins:slp, azm:az,
-                sleepType:(sl&&sl.sleepType)||null, stages:(sl&&sl.stages)||null,
-                napMins:(sl&&sl.napMins)?Math.round(sl.napMins):null };
-  }
-  return days;
-}
-/* ---- group 2: the dailies (RHR, HRV, breathing, SpO2, VO2max) — all-or-nothing ---- */
-async function ghFetchDailies(startIso, endIso){
-  const out={ rhr:{}, hrvMs:{}, brpm:{}, spo2:{}, vo2max:{} };
-  const spec=[
-    /* ghFirstReq here too (panel, connector QA): a dailies union always carries `date`, so a
-       point whose VALUE key is missing is a rename/shape change — loud drift, never a silent
-       null that clears stored older days. */
-    ['daily-resting-heart-rate','daily_resting_heart_rate','dailyRestingHeartRate','rhr', (v,rel)=>ghFirstReq(v,['beatsPerMinute'],rel)],
-    ['daily-heart-rate-variability','daily_heart_rate_variability','dailyHeartRateVariability','hrvMs', (v,rel)=>ghFirstReq(v,['averageHeartRateVariabilityMilliseconds'],rel)],
-    ['daily-respiratory-rate','daily_respiratory_rate','dailyRespiratoryRate','brpm', (v,rel)=>ghFirstReq(v,['breathsPerMinute','averageBreathsPerMinute','respiratoryRate'],rel)],
-    ['daily-oxygen-saturation','daily_oxygen_saturation','dailyOxygenSaturation','spo2', (v,rel)=>ghFirstReq(v,['averagePercentage','percentage','averageOxygenSaturationPercentage'],rel)],
-    ['daily-vo2-max','daily_vo2_max','dailyVo2Max','vo2max', (v,rel)=>ghFirstReq(v,['vo2Max','value','vo2MaxMlPerKgPerMin'],rel)],
-  ];
-  for(const [dt,fkey,tag,okey,val] of spec){
-    const f=fkey+'.date >= "'+startIso+'" AND '+fkey+'.date < "'+addDays(endIso,1)+'"';
-    const j=await ghFetch(dt+'/dataPoints?pageSize=100&filter='+encodeURIComponent(f));
-    const arr = j.dataPoints==null ? [] : j.dataPoints;
-    if(!Array.isArray(arr)) throw ghErr('drift','bad-shape',dt);
-    if(j.nextPageToken) throw ghErr('drift','pages',dt);   /* adversarial review: 14 days can't fill a 100-point page — an unfollowable token must be loud, never a silent truncation that nulls stored days */
-    for(const p of arr){
-      const v=p&&p[tag]; if(!v) continue;                                 // additions ignored
-      const iso=ghCivilDay(v.date&&{date:v.date}, dt);
-      if(!iso) throw ghErr('drift','bad-date',dt);
-      if(iso<startIso||iso>endIso) continue;                              // server overshoot dropped, never corrupting
-      out[okey][iso]=val(v,dt);
-    }
-  }
-  return out;
-}
-function ghErrMsg(e){
-  if(!e) return null;
-  const name=e.call?ghRelName(e.call):'';
-  if(e.cls==='auth') return 'Google Health signed out — tap to resume';
-  if(e.cls==='permission') return e.msg||'Google refused access — see the Connections card';
-  if(e.cls==='drift') return 'Google Health sent data this planner doesn’t recognise ('+(name||'?')+' · '+e.message+') — nothing changed. Needs a planner update.';
-  return 'Couldn’t reach Google Health ('+(name?name+' · ':'')+e.message+') — last known figures shown';
-}
-/* ---- the refresh. Mirrors refreshHealth's discipline exactly; two atomic groups. ---- */
-async function refreshGH(force){
-  if(isStandalonePWA()) return;                                           // sync consumer on the installed phone app
-  if(!ghHasGrant()) return;
-  if(ghState.refreshing) return;
-  if(!force && Date.now()-_ghLast<30*60*1000) return;                     // at most twice an hour, per provider
-  if(!navigator.onLine){ if(force){ ghState.stripErr='Offline — Google Health will update when you’re back online'; } return; }   // an automatic offline attempt latches nothing
-  const tok=ghToken();
-  if(!tok){                                                               // dead token: an automatic path NEVER opens UI — chip instead
-    ghState.needsTap=true; _ghLast=Date.now();
-    renderDeferred();
-    return;
-  }
-  ghState.refreshing=true;
-  try{
-    const startIso=addDays(todayISO,-13), endExIso=addDays(todayISO,1);
-    let strip=null, dailies=null, stripE=null, dailiesE=null;
-    try{ strip=await ghFetchStrip(startIso,endExIso); }catch(e){ stripE=e; }
-    try{ dailies=await ghFetchDailies(startIso,todayISO); }catch(e){ dailiesE=e; }
-    _ghLast=Date.now();                                                   // every outcome stamps the throttle — a failing endpoint must not be hammered
-    ghState.stripErr = stripE?ghErrMsg(stripE):null;
-    ghState.dailiesErr = dailiesE?ghErrMsg(dailiesE):null;
-    if((stripE&&stripE.cls==='auth')||(dailiesE&&dailiesE.cls==='auth')) ghState.needsTap=true;
-    const permE=(stripE&&stripE.cls==='permission'&&stripE)||(dailiesE&&dailiesE.cls==='permission'&&dailiesE)||null;
-    ghState.permission=permE?(permE.msg||ghErrMsg(permE)):null;
-    if(strip||dailies){
-      /* COMMIT — the only writes. DB.health re-read here so an adopt that landed mid-fetch
-         can never receive data on a detached object; the gh node is created here and only here. */
-      const now=Date.now();
-      if(!DB.health) DB.health={ source:'none', updatedAt:0, days:{} };
-      const g=(DB.health.gh&&typeof DB.health.gh==='object'&&DB.health.gh.days)?DB.health.gh:{ updatedAt:0, dailiesAt:0, days:{} };
-      const days=g.days;
-      const yday=addDays(todayISO,-1);                                    // todayISO re-read at commit: a run spanning midnight protects the NEW pair
-      if(strip){
-        for(const iso of Object.keys(strip)){
-          const prev=days[iso]||null, cand=strip[iso];
-          const next=Object.assign({steps:null,caloriesOut:null,activeMins:null,sleepMins:null,azm:null,rhr:null,hrvMs:null,brpm:null,spo2:null,vo2max:null,sleepType:null,stages:null,napMins:null}, prev||{}, cand);
-          if(prev && iso>=yday){                                          // last night/today may not have reached Google yet — a null there never deletes a real figure
-            for(const k of ['sleepMins','steps','caloriesOut','activeMins','azm','napMins']){ if(cand[k]==null && prev[k]!=null) next[k]=prev[k]; }
-            if(cand.sleepMins==null && prev.sleepMins!=null){ if(next.stages==null) next.stages=prev.stages||null; if(next.sleepType==null) next.sleepType=prev.sleepType||null; }
-          }
-          next.exercised = next.activeMins!=null && next.activeMins>=30;  // heuristic only; the gym tick stays separate
-          days[iso]=next;
-        }
-        g.updatedAt=now;
-      }
-      if(dailies){
-        const mk=['rhr','hrvMs','brpm','spo2','vo2max'];
-        for(let iso=startIso; iso<=todayISO; iso=addDays(iso,1)){
-          const prev=days[iso]||null;
-          let any=false; for(const k of mk){ if(dailies[k][iso]!=null){ any=true; break; } }
-          if(!prev && !any) continue;                                     // dailies-only days are real (sleep-less RHR day); dataless days are not invented
-          const next=prev?Object.assign({},prev):{steps:null,caloriesOut:null,activeMins:null,sleepMins:null,azm:null,exercised:false,sleepType:null,stages:null,napMins:null};
-          for(const k of mk){
-            const cand=dailies[k][iso]!=null?dailies[k][iso]:null;
-            if(iso>=yday && cand==null && prev && prev[k]!=null){ next[k]=prev[k]; }   // today's RHR simply hasn't been computed yet at 9am
-            else next[k]=cand;
-          }
-          days[iso]=next;
-        }
-        g.dailiesAt=now;
-      }
-      DB.health.gh=g;
-      ghState.zeroDays = !Object.keys(days).length;
-      /* v2.1 (FAULT 2) discipline, unchanged: an UNATTENDED write never bumps savedAt or rev,
-         never pushes. Local only; the cloud gets it on the next real user-action save. */
-      saveLocalOnly();
-    }
-    renderDeferred();
-  }catch(e){ /* never throw into the app */ }
-  ghState.refreshing=false;
-}
-/* ---- post-refresh render that can never rip the DOM out from under a drag or a dialog
-   (both providers route through this; the flag is cleared by any render) ---- */
-function renderDeferred(){
-  if(dragging || (dlg&&dlg.open)){ _healthRenderDeferred=true; return; }
-  _healthRenderDeferred=false;
-  render();
-}
-function ghPrimaryErr(){ return ghState.permission || ghState.stripErr || ghState.dailiesErr || (ghState.needsTap?'Paused — tap Resume on the card':null); }
-/* ---- ribbon warn precedence: at most ONE line. needsTap (fixable in place, only when gh
-   is stale >6h) → permission/drift (needs reading) → Fitbit error → GH transient stays card-only. ---- */
-function ribbonWarnHTML(){
-  if(!isStandalonePWA() && ghHasGrant() && !ghToken() && ghStale6h())
-    return `<button class="hribbon connect" data-gh="resume">Google Health paused — tap to resume · routine after an hour away</button>`;
-  if(ghState.permission)
-    return `<button class="hribbon connect" data-go="more">${esc(ghState.permission)} →</button>`;
-  const drift=[ghState.stripErr,ghState.dailiesErr].find(s=>s&&/recognise/.test(s));
-  if(drift) return `<button class="hribbon connect" data-go="more">${esc(drift)}</button>`;
-  if(fitState.error) return `<button class="hribbon connect" data-go="more">${esc(fitState.error)} — tap for the Connections card →</button>`;
-  return '';
-}
-/* ---- More → Connections card ---- */
-function ghCardInner(){
-  if(isStandalonePWA()){
-    const held=ghDataPresent()?Object.keys(DB.health.gh.days).length:0;
-    const upd=(DB.health&&DB.health.gh&&DB.health.gh.updatedAt)?(' · synced '+hhmm(DB.health.gh.updatedAt)):'';
-    return `<div class="conn">
-      <div class="conn-h"><div><div class="conn-t">Google Health</div><div class="conn-d">${held?held+' day'+(held!==1?'s':'')+' via OneDrive sync'+upd:'Connects on the laptop — this phone shows the synced figures automatically'}</div></div><span class="conn-badge">via sync</span></div>
-      ${held?'<button class="conn-mini" data-gh="openhealth">Open health view →</button>':''}
-    </div>`;
-  }
-  if(!ghHasGrant()){
-    return `<div class="conn">
-      <div class="conn-h"><div><div class="conn-t">Google Health · sleep, steps & richer metrics</div><div class="conn-d">Read-only · sign in as <b>tomhunter848@gmail.com</b> — the Google account your Fitbit lives in</div></div><span class="conn-badge">${(ghState.connErr||ghState.permission||ghState.needsTap)?'Retry':'Not connected'}</span></div>
-      <button class="conn-btn" data-gh="connect">Connect Google Health</button>
-      ${ghState.permission?`<div class="conn-warn">${esc(ghState.permission)} <button class="linkbtn" data-gh="consent">Fix permissions</button></div>`:''}
-      ${(!ghState.permission&&ghState.needsTap)?`<div class="conn-warn">Google Health signed out — one tap reconnects it; no password. <button class="linkbtn" data-gh="connect">Reconnect</button></div>`:''}
-      ${ghState.connErr?`<div class="conn-warn">${esc(ghState.connErr)} <button class="linkbtn" data-gh="connect">Try again</button></div>`:''}
-      ${!DEPLOY_OK?`<div class="conn-d" style="margin-top:8px">Runs on the live site (not in this preview).</div>`:''}
-      <div class="conn-d" style="margin-top:8px">Runs beside Fitbit until its API retires in September. After an hour away, Google asks for one tap to resume — no password, takes a second.</div>
-    </div>`;
-  }
-  const held=ghDataPresent()?Object.keys(DB.health.gh.days).length:0;
-  const g=DB.health&&DB.health.gh;
-  const upd=(g&&g.updatedAt)?(' · updated '+hhmm(g.updatedAt)):'';
-  const paused=!ghToken();   /* computed before the template below uses it */
-  const warn = ghState.permission
-    ? `<div class="conn-warn">${esc(ghState.permission)} <button class="linkbtn" data-gh="consent">Fix permissions</button></div>`
-    : paused
-      ? `<div class="conn-warn">Paused — Google pauses browser access after an hour away. One tap resumes it; no password. <button class="linkbtn" data-gh="resume">Resume</button></div>`
-      : (ghState.connErr?`<div class="conn-warn">${esc(ghState.connErr)} <button class="linkbtn" data-gh="resume">Try again</button></div>`:'');
-  const errs=[ghState.stripErr,ghState.dailiesErr].filter(s=>s&&s!==ghState.permission).map(s=>`<div class="conn-warn">${esc(s)}</div>`).join('');
-  const zero=(!paused&&!ghState.permission&&!ghState.stripErr&&held===0&&g&&g.updatedAt)
-    ? `<div class="conn-warn">No health data found — check you connected tomhunter848@gmail.com. <button class="linkbtn" data-gh="disconnect">Disconnect</button> then reconnect as 848.</div>` : '';
-  return `<div class="conn">
-    <div class="conn-h"><div><div class="conn-t">Google Health ${(!paused&&!ghState.permission)?'<span class="conn-live" style="color:var(--good);background:var(--good-wash);border-color:var(--good)">● live</span>':''}</div><div class="conn-d">${held} day${held!==1?'s':''} of sleep/steps/richer metrics${upd}</div></div><span class="conn-badge">read-only</span></div>
-    <div class="conn-row2"><button class="conn-btn ghost2" data-gh="refresh">Refresh now</button><button class="conn-btn ghost2" data-gh="disconnect">Disconnect</button></div>
-    ${warn}${errs}${zero}
-    <button class="conn-mini" data-gh="openhealth">Open health view →</button>
-  </div>`;
-}
-/* ---- the HEALTH VIEW: richer metrics + planner-computed baselines. Read-only, no history
-   state, in-app back only. ---- */
-function ghLatest(metric, maxBack){
-  for(let i=0;i<=(maxBack||7);i++){ const iso=addDays(todayISO,-i); const r=ghDay(iso); if(r&&r[metric]!=null) return {iso, v:r[metric]}; }
-  return null;
-}
-function ghBaseline(metric, daysBack){
-  let s=0,n=0;
-  for(let i=1;i<=(daysBack||30);i++){ const r=ghDay(addDays(todayISO,-i)); if(r&&r[metric]!=null){ s+=r[metric]; n++; } }
-  return n?{mean:s/n, n}:{mean:null, n:0};
-}
-function ghReadiness(){
-  const bR=ghBaseline('rhr',30), bH=ghBaseline('hrvMs',30);
-  const lR=ghLatest('rhr',1), lH=ghLatest('hrvMs',1);
-  const MIN=7;
-  if(bR.n<MIN||bH.n<MIN||!lR||!lH) return { ready:false, need:MIN, have:Math.min(bR.n,bH.n) };
-  const dR=lR.v-bR.mean;                                                  // above baseline = strain
-  const dH=bH.mean?((lH.v-bH.mean)/bH.mean)*100:0;                        // below baseline = strain
-  let night=null; const RN=healthDayR(todayISO); const RY=healthDayR(addDays(todayISO,-1));
-  if(RN&&RN.rec.sleepMins!=null) night=RN.rec.sleepMins; else if(RY&&RY.rec.sleepMins!=null) night=RY.rec.sleepMins;
-  const debt=night==null?null:Math.max(0,SLEEP_TARGET-night);
-  const cls=[ dR>4?2:(dR>2?1:0), dH<-15?2:(dH<-8?1:0), debt==null?1:(debt>120?2:(debt>45?1:0)) ];
-  const bad=cls.filter(c=>c===2).length, mid=cls.filter(c=>c===1).length;
-  const band= bad>=2?'Low' : (bad>=1||mid>=2)?'Fair' : 'Good';
-  return { ready:true, band,
-    lines:[
-      'RHR '+Math.round(lR.v)+' — '+(Math.abs(dR)<1?'on':(dR>0?Math.round(dR)+' above':Math.round(-dR)+' below'))+' your 30-day norm',
-      'HRV '+Math.round(lH.v)+'ms — '+(Math.abs(dH)<3?'near':(dH>0?Math.round(dH)+'% above':Math.round(-dH)+'% below'))+' your 30-day norm',
-      night==null?'Last night not tracked yet':('Sleep '+fmtHM(night)+(debt>0?' — −'+fmtHM(debt)+' vs 8h':' — on target'))
-    ] };
-}
-function renderHealth(){
-  const wrap=isLap()?'<div class="lapwrap" style="max-width:760px">':'';
-  const g=DB.health&&DB.health.gh||null;
-  const held=g&&g.days?Object.keys(g.days).length:0;
-  const phone=!isLap();
-  const tile=(k,val,sub)=>`<div class="hstat" style="min-width:0"><span class="hk">${k}</span><span class="hv">${val==null?'—':val}</span><span class="hs">${sub||''}</span></div>`;
-  let body='';
-  if(!held){
-    body=`<div class="empty"><div class="ic">⚕️</div><div class="h">No Google Health data yet.</div><div class="s">${isStandalonePWA()?'Connect on the laptop — figures arrive here automatically via sync.':(ghHasGrant()?'Connected, but nothing found yet — check it\u2019s tomhunter848@gmail.com on the More card.':'Connect Google Health on the More tab (sign in as tomhunter848@gmail.com).')}</div></div>`;
-  } else {
-    const lR=ghLatest('rhr'), lH=ghLatest('hrvMs'), lB=ghLatest('brpm'), lS=ghLatest('spo2'), lV=ghLatest('vo2max',30), lZ=ghLatest('azm',1);
-    const dayLabel=x=>x?(x.iso===todayISO?'today':(x.iso===addDays(todayISO,-1)?'yesterday':x.iso.slice(5))):'';
-    const tiles=`<div class="hribbon" style="position:static">
-      ${tile('Resting HR', lR?Math.round(lR.v):null, dayLabel(lR))}
-      ${tile('HRV', lH?Math.round(lH.v)+'ms':null, dayLabel(lH))}
-      ${tile('Breathing', lB?(Math.round(lB.v*10)/10)+'/min':null, dayLabel(lB))}
-      ${tile('SpO2', lS?(Math.round(lS.v*10)/10)+'%':null, dayLabel(lS))}
-      ${tile('Zone mins', lZ?Math.round(lZ.v):null, dayLabel(lZ))}
-      ${tile('VO2 max', lV?Math.round(lV.v):null, dayLabel(lV))}
-    </div>`;
-    let night=''; const nIso=[todayISO,addDays(todayISO,-1)].find(iso=>{ const r=ghDay(iso); return r&&(r.sleepMins!=null||r.stages); });
-    if(nIso){
-      const r=ghDay(nIso); const st=r.stages;
-      const tot=st?(st.deep+st.light+st.rem+st.awake):0;
-      const seg=(v,c,lab)=>tot&&v?`<span style="display:inline-block;height:100%;width:${Math.round(v/tot*100)}%;background:${c}" title="${lab} ${fmtHM(v)}"></span>`:'';
-      night=`<div class="eyebrow" style="margin-top:14px">Last night · ${nIso===todayISO?'to this morning':nIso}<span class="ln"></span></div>
-        <div style="font-size:13px;font-weight:640">${r.sleepMins!=null?fmtHM(r.sleepMins)+' asleep':'—'}${r.napMins?' · nap '+fmtHM(r.napMins):''}${r.sleepType?' · '+esc(String(r.sleepType).toLowerCase()):''}</div>
-        ${st?`<div class="pf-bar" style="display:flex">${seg(st.deep,'#3b5bdb','deep')}${seg(st.light,'#748ffc','light')}${seg(st.rem,'#9775fa','REM')}${seg(st.awake,'#cdbfa8','awake')}</div>
-        <div class="hs" style="margin-top:4px;color:var(--muted);font-size:10.5px">deep ${fmtHM(st.deep)} · light ${fmtHM(st.light)} · REM ${fmtHM(st.rem)} · awake ${fmtHM(st.awake)}</div>`:''}`;
-    }
-    const R=ghReadiness();
-    const bandCol=R.ready?(R.band==='Good'?'var(--good)':(R.band==='Low'?'var(--gold)':'var(--ink-2)')):'var(--muted)';
-    const readiness=`<div class="eyebrow" style="margin-top:14px">Readiness — rough guide, not a score<span class="ln"></span></div>
-      ${R.ready
-        ? `<div style="font-size:22px;font-weight:760;color:${bandCol}">${R.band}</div><div style="font-size:12px;color:var(--ink-2);margin-top:4px">${R.lines.map(esc).join('<br>')}</div>`
-        : `<div style="font-size:13px;color:var(--muted)">Building baseline — ${R.have} of ${R.need} tracked days minimum.</div>`}
-      <div class="conn-d" style="margin-top:6px">Computed by this planner from your own raw data — not a Google or Fitbit score, not a medical reading.${R.ready?' The three lines above are the whole formula.':''}</div>`;
-    let rows='';
-    for(let i=0;i<14;i++){
-      const iso=addDays(todayISO,-i); const r=ghDay(iso)||{};
-      const c=v=>v==null?'<span style="color:var(--faint)">–</span>':String(Math.round(v*10)/10);
-      rows+=`<span>${iso.slice(5)}</span><span>${c(r.rhr)}</span><span>${c(r.hrvMs)}</span><span>${c(r.brpm)}</span><span>${c(r.spo2)}</span><span>${c(r.azm)}</span>`;
-    }
-    const table=`<details class="hdisc"${phone?'':' open'}><summary>14 days · RHR / HRV / breathing / SpO2 / zone mins</summary>
-      <div class="htab"><span class="hh">day</span><span class="hh">RHR</span><span class="hh">HRV</span><span class="hh">BR</span><span class="hh">SpO2</span><span class="hh">AZM</span>${rows}</div>
-      <div class="hs" style="color:var(--muted);font-size:10.5px;margin-top:4px">– = not tracked that day</div></details>`;
-    let prows='', pAny=false;
-    const fitD=(DB.health&&DB.health.source==='fitbit'&&DB.health.days)||{};
-    for(let i=0;i<14;i++){
-      const iso=addDays(todayISO,-i); const gr=ghDay(iso)||{}; const fr=fitD[iso]||{};
-      if(gr.steps!=null||fr.steps!=null) pAny=true;
-      const pair=(a,b)=>`<span>${a==null?'–':Math.round(a)} / ${b==null?'–':Math.round(b)}</span>`;
-      prows+=`<span>${iso.slice(5)}</span>${pair(gr.steps,fr.steps)}${pair(gr.caloriesOut,fr.caloriesOut)}${pair(gr.sleepMins,fr.sleepMins)}`;
-    }
-    const parity=pAny?`<details class="hdisc"><summary>Handover check — Google vs Fitbit, same days</summary>
-      <div class="htab htab4" style="grid-template-columns:44px repeat(3,1fr)"><span class="hh">day</span><span class="hh">steps G/F</span><span class="hh">kcal G/F</span><span class="hh">sleep G/F</span>${prows}</div>
-      <div class="hs" style="color:var(--muted);font-size:10.5px;margin-top:4px">The two count slightly differently — small differences are normal. G = filled by Google Health where Fitbit had no record.</div></details>`:'';
-    const age=[ g.updatedAt?('synced '+hhmm(g.updatedAt)):null, (g.dailiesAt&&g.dailiesAt!==g.updatedAt)?('dailies '+hhmm(g.dailiesAt)):null ].filter(Boolean).join(' · ');
-    body=tiles+night+readiness+table+parity+(age?`<div class="hage" style="margin-top:10px">${age}</div>`:'');
-  }
-  view.innerHTML = `${wrap}<button class="backbtn" data-go="today">‹ Today</button>
-    <div class="eyebrow">Health · Google${held?'':(ghHasGrant()?' · no data yet':' · not connected')}<span class="ln"></span></div>
-    ${body}${wrap?'</div>':''}`;
-}
-/* ============================ GH-END ============================ */
+/* Google Health API successor — filled in once the OAuth Web client exists in the
+   weekly-planner-health Cloud project (console checklist with Tom). Wired next build. */
+const GH={ clientId:'', authorize:'https://accounts.google.com/o/oauth2/v2/auth', token:'https://oauth2.googleapis.com/token' };
 function fmtHM(m){ m=Math.round(m); const h=Math.floor(m/60), mm=m%60; return h? (mm?`${h}h ${mm}m`:`${h}h`) : `${mm}m`; }
 function sampleHealth(){ const d={}; const set=(off,sleep,steps,cal,act,ex)=>{ d[addDays(todayMonday,off)]={sleepMins:sleep,steps,caloriesOut:cal,activeMins:act,exercised:ex}; };
   set(0,447,8203,2610,42,true); set(1,402,5563,2711,18,false); set(2,null,6120,2540,25,false); /* Wed: tracker died overnight — no sleep logged */ set(3,408,4980,2480,55,true);
   return { source:'sample', updatedAt:Date.now(), days:d }; }
-function healthDay(iso){ const R=healthDayR(iso); return R?R.rec:null; }   /* v2.3: resolved — FIT preferred, GH fills, sample counts as absent once gh exists */
+function healthDay(iso){ return (DB.health&&DB.health.days||{})[iso]||null; }
 function sleepDebt(mins){ return mins==null? null : Math.max(0, SLEEP_TARGET-mins); }
 // weekly debt sums ONLY tracked nights, so a dead Fitbit night never fabricates 8h of debt
 function weekSleepDebt(monIso){ let total=0, tracked=0; for(let i=0;i<7;i++){ const r=healthDay(addDays(monIso,i)); if(r && r.sleepMins!=null){ tracked++; total+=Math.max(0, SLEEP_TARGET-r.sleepMins); } } return {total,tracked}; }
@@ -3593,9 +2982,7 @@ async function refreshHealth(force){
   if(!force && Date.now()-_fitLast<30*60*1000) return;                    // at most twice an hour
   fitState.refreshing=true;
   try{
-    /* v2.3 (adversarial review): DB.health now carries the gh sibling — the v2.2 wholesale
-       replacement here would silently DELETE it on a GH-first device. Carry it across. */
-    if(!DB.health || DB.health.source!=='fitbit'){ const _gh=DB.health&&DB.health.gh; DB.health={ source:'fitbit', updatedAt:Date.now(), days:{} }; if(_gh) DB.health.gh=_gh; }
+    if(!DB.health || DB.health.source!=='fitbit'){ DB.health={ source:'fitbit', updatedAt:Date.now(), days:{} }; }
     const start=addDays(todayISO,-6), end=todayISO;
     let changed=false, fetched=null;
     try{
@@ -3627,7 +3014,7 @@ async function refreshHealth(force){
        persisted locally only; it reaches the cloud on the next real (user-action) save, and
        each device fetches its own Fitbit data anyway. */
     if(changed) saveLocalOnly();
-    renderDeferred();   /* v2.3: a background refresh must never rebuild the DOM mid-drag or mid-dialog */
+    render();
   }catch(e){ /* never throw into the app */ }
   fitState.refreshing=false;
 }
@@ -3638,9 +3025,8 @@ function hmK(n){ if(n==null) return null; return n>=10000?(n/1000).toFixed(1)+'k
 function hmSleep(m){ if(m==null) return null; return (m/60).toFixed(1)+'h'; }
 function weekHealthChipsHTML(iso){
   if(iso>todayISO) return '';
-  const R=healthDayR(iso);
-  const r=R&&R.rec;
-  const smp=!!(R&&R.src==='sample');   /* v2.3: sample styling is per-day (resolved source), so real GH days on a sample-seeded device never render dimmed as fake */
+  const r=healthDay(iso);
+  const smp=!!(DB.health&&DB.health.source==='sample');
   const cell=(cls,key,val,tip)=>`<span class="hm ${cls}${val==null?' none':''}" title="${tip}"><em>${key}</em><b>${val==null?'\u2013':val}</b></span>`;   // class names are hm-prefixed: bare 's'/'c'/'t' would collide with global task styles
   const slp=r?hmSleep(r.sleepMins):null, cal=r?hmK(r.caloriesOut):null, stp=r?hmK(r.steps):null;
   const ex=(v,u)=>v==null?'no data':(v+' '+u);
@@ -3652,26 +3038,20 @@ function weekHealthChipsHTML(iso){
 }
 function healthRibbonHTML(){
   if(!DB.health) return '';
-  const R=healthDayR(todayISO);
-  const rec=(R&&R.rec) || ((fitToken()||ghHasGrant()||ghDataPresent())? {sleepMins:null,steps:null,caloriesOut:null,activeMins:null,exercised:false} : null);
+  const rec=healthDay(todayISO) || (fitToken()? {sleepMins:null,steps:null,caloriesOut:null,activeMins:null,exercised:false} : null);
   if(!rec){ return `<button class="hribbon connect" data-go="more">Connect Fitbit / Google Health to see sleep, steps & calories here →</button>`; }
-  /* v2.3: at most ONE warn line (precedence in ribbonWarnHTML) — two stacked banners is how
-     a real fault learns to be ignored. Suppressed states stay on their More cards. */
-  return ribbonWarnHTML() + healthStatsHTML(rec, {entry:true, src:R&&R.src});
+  if(fitState.error){ return `<button class="hribbon connect" data-go="more">${esc(fitState.error)} — tap for the Connections card →</button>`+healthStatsHTML(rec); }
+  return healthStatsHTML(rec);
 }
-function healthStatsHTML(rec, opts){
-  opts=opts||{};
+function healthStatsHTML(rec){
   const debt=sleepDebt(rec.sleepMins); const toGo=Math.max(0,STEP_GOAL-(rec.steps||0));
-  const smp=opts.src==='sample';
-  const gsrc=opts.src==='gh';
-  let exDays=0; for(let i=0;i<7;i++){ const iso=addDays(todayMonday,i); const RR=healthDayR(iso); if((RR&&RR.src!=='sample'&&RR.rec.exercised)||(DB.gym&&DB.gym[iso]))exDays++; }
-  const entry=opts.entry?` data-gh="openhealth" role="button" tabindex="0" aria-label="Open health view"`:'';
-  return `<div class="hribbon"${entry}>
-    <div class="hstat"><span class="hk">Sleep${smp?' · sample':''}${gsrc?' <span class="hsrc" title="Today’s figures from Google Health">G</span>':''}</span><span class="hv">${rec.sleepMins!=null?fmtHM(rec.sleepMins):'—'}</span><span class="hs ${rec.sleepMins==null?'':(debt>0?'deficit':'ok')}">${rec.sleepMins==null?'no data':(debt>0?'−'+fmtHM(debt)+' vs 8h':'on target')}</span></div>
+  const smp=DB.health&&DB.health.source==='sample';
+  let exDays=0; for(let i=0;i<7;i++){ const iso=addDays(todayMonday,i); const r=healthDay(iso); if((!smp&&r&&r.exercised)||(DB.gym&&DB.gym[iso]))exDays++; }
+  return `<div class="hribbon">
+    <div class="hstat"><span class="hk">Sleep${smp?' · sample':''}</span><span class="hv">${rec.sleepMins!=null?fmtHM(rec.sleepMins):'—'}</span><span class="hs ${rec.sleepMins==null?'':(debt>0?'deficit':'ok')}">${rec.sleepMins==null?'no data':(debt>0?'−'+fmtHM(debt)+' vs 8h':'on target')}</span></div>
     <div class="hstat"><span class="hk">Steps</span><span class="hv">${rec.steps!=null?rec.steps.toLocaleString():'—'}</span><span class="hs">${rec.steps==null?'no data yet':(toGo?toGo.toLocaleString()+' to 10k':'10k done ✓')}</span></div>
     <div class="hstat"><span class="hk">Burned</span><span class="hv">${rec.caloriesOut!=null?rec.caloriesOut.toLocaleString():'—'}</span><span class="hs">${rec.caloriesOut==null?'no data yet':'cal today'}</span></div>
     <div class="hstat"><span class="hk">Exercise</span><span class="hv">${exDays}</span><span class="hs">day${exDays!==1?'s':''} this week</span></div>
-    ${opts.entry?'<span class="hgo">›</span>':''}
   </div>`;
 }
 const CLAUDE_MODES={ prompt:['Prompt','a quick Claude chat'], workflow:['Workflow','a saved Claude workflow'], cowork:['Cowork','run in Claude Cowork'], code:['Code','build in Claude Code'] };
@@ -3815,8 +3195,6 @@ render();
 try{ initOneDrive(); }catch(e){}
 setTimeout(maybeOfferRecurCatchup, 900);   // v2.0 (E0): one-time offer, user decides, More has the same action
 try{ refreshHealth(); }catch(e){}
-try{ refreshGH(); }catch(e){}
-try{ dlg.addEventListener('close', ()=>{ if(_healthRenderDeferred) renderDeferred(); }); }catch(e){}   /* v2.3: Escape-close also flushes a parked health redraw */
 watchLayout();
 watchDate();
 primeReminders();
