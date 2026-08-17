@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Google Health probe — READ ONLY</title>
+<style>
+  :root{color-scheme:dark}
+  body{font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0f1115;color:#d7dce3;margin:0;padding:18px;max-width:1100px}
+  h1{font-size:17px;margin:0 0 4px}
+  .sub{color:#8b94a3;margin:0 0 14px}
+  .banner{background:#1d2735;border:1px solid #33415c;border-radius:8px;padding:10px 12px;margin:0 0 14px}
+  button{font:inherit;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer}
+  button:disabled{background:#374151;cursor:default}
+  .verdict{font-size:16px;font-weight:700;border-radius:8px;padding:10px 12px;margin:14px 0;display:none}
+  .verdict.pass{display:block;background:#0d2818;border:1px solid #14532d;color:#4ade80}
+  .verdict.fail{display:block;background:#2b1214;border:1px solid #7f1d1d;color:#f87171}
+  .verdict.mixed{display:block;background:#2b2410;border:1px solid #78560f;color:#fbbf24}
+  table{border-collapse:collapse;margin:10px 0;width:100%}
+  th,td{border:1px solid #2a3242;padding:4px 8px;text-align:right;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{background:#161b26;color:#9aa4b2}
+  td.miss{color:#556070}
+  td.diff{color:#fbbf24}
+  td.match{color:#4ade80}
+  .call{margin:4px 0;padding:6px 10px;border-left:3px solid #2a3242}
+  .call.ok{border-color:#14532d}
+  .call.bad{border-color:#7f1d1d}
+  .call b{color:#e5e9f0}
+  details{margin:8px 0}
+  summary{cursor:pointer;color:#8b94a3}
+  pre{background:#161b26;border:1px solid #2a3242;border-radius:6px;padding:10px;overflow:auto;max-height:340px;font-size:12px}
+  .note{color:#8b94a3;font-size:12.5px}
+</style>
+</head>
+<body>
+<h1>Google Health API — live probe</h1>
+<p class="sub">v2.3 pre-build check &middot; 17 Aug 2026 &middot; reads only, writes nothing, stores nothing</p>
+
+<div class="banner">
+  <b>One tap:</b> press the button, and in the Google popup pick / sign in as
+  <b>tomhunter848@gmail.com</b> (the Fitbit account — NOT 838). Approve the three read-only
+  health scopes. The token lives in this page's memory only; nothing is saved anywhere.
+</div>
+
+<button id="go">Sign in as 848 &amp; run probe</button>
+<span id="stat" class="note" style="margin-left:10px"></span>
+
+<div id="verdict" class="verdict"></div>
+<div id="calls"></div>
+<div id="tables"></div>
+<div id="raw"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+'use strict';
+/* ============================================================================
+   PROBE, NOT PRODUCT. This page:
+     - never writes to localStorage/sessionStorage (verified: zero .setItem calls);
+     - never touches the planner's keys except ONE read of wp:reeng:proto:v1 to
+       show the Fitbit strip values beside Google's, for parity;
+     - holds the access token in a local variable only.
+   Purpose: (1) does CORS pass browser->health.googleapis.com?  (2) do the values
+   match the Fitbit strip?  (3) exact response shapes for the v2.3 parsers.
+   ============================================================================ */
+const CLIENT_ID='636974169783-v1ni7gjqq6atp7oue424sp1a4n287mvb.apps.googleusercontent.com';
+const SCOPES=[
+ 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
+ 'https://www.googleapis.com/auth/googlehealth.sleep.readonly',
+ 'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly'
+].join(' ');
+const API='https://health.googleapis.com/v4/users/me/dataTypes/';
+const DAYS=14;
+
+const $=id=>document.getElementById(id);
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const addDays=(s,n)=>{const[y,m,d]=s.split('-').map(Number);const x=new Date(y,m-1,d);x.setDate(x.getDate()+n);return iso(x);};
+const TODAY=iso(new Date());
+const START=addDays(TODAY,-(DAYS-1));        // 14 civil days incl. today
+const ENDX =addDays(TODAY,1);                // closed-open upper bound
+const civil=s=>{const[y,m,d]=s.split('-').map(Number);return{date:{year:y,month:m,day:d}}};
+
+const results={};      // raw JSON per call
+const rows={};         // per-day merged values
+const dayRow=d=>rows[d]||(rows[d]={});
+
+function note(name,ok,detail){
+  const el=document.createElement('div');
+  el.className='call '+(ok?'ok':'bad');
+  el.innerHTML='<b>'+name+'</b> — '+detail;
+  $('calls').appendChild(el);
+}
+function rawDump(name,obj){
+  const d=document.createElement('details');
+  d.innerHTML='<summary>raw · '+name+'</summary>';
+  const p=document.createElement('pre');
+  p.textContent=JSON.stringify(obj,null,2);
+  d.appendChild(p); $('raw').appendChild(d);
+}
+async function call(name,method,url,body,tok){
+  const t0=performance.now();
+  try{
+    const r=await fetch(url,{method,
+      headers:Object.assign({'Authorization':'Bearer '+tok},body?{'Content-Type':'application/json'}:{}),
+      body:body?JSON.stringify(body):undefined});
+    const ms=Math.round(performance.now()-t0);
+    let j=null; try{ j=await r.json(); }catch(e){ j={_parseError:String(e)}; }
+    results[name]={http:r.status,ms,body:j};
+    if(!r.ok){ note(name,false,'HTTP '+r.status+' in '+ms+'ms — '+(j&&j.error&&j.error.message||'').slice(0,140)); }
+    else{
+      const n=(j.rollupDataPoints||j.dataPoints||[]).length;
+      note(name,true,'HTTP 200 in '+ms+'ms · '+n+' items');
+    }
+    rawDump(name,j);
+    return r.ok?j:null;
+  }catch(e){
+    /* fetch TypeError with no HTTP status = blocked before a response existed:
+       CORS preflight/origin rejection or network. THE go/no-go signal. */
+    results[name]={http:null,err:String(e)};
+    note(name,false,'<b>NO RESPONSE</b> — '+String(e).slice(0,160)+' <i>(CORS or network — if this repeats on every call, the worker-proxy fallback is the answer)</i>');
+    rawDump(name,{error:String(e)});
+    return null;
+  }
+}
+/* tolerant readers — exact union tags get confirmed by this very probe */
+function pickNum(o,keys){ for(const k of keys){ const v=k.split('.').reduce((a,p)=>a&&a[p],o); if(typeof v==='number') return v; } return null; }
+function civilToIso(c){ if(!c||!c.date) return null; const d=c.date; return d.year+'-'+String(d.month).padStart(2,'0')+'-'+String(d.day).padStart(2,'0'); }
+function rollupRows(j,put){
+  (j&&j.rollupDataPoints||[]).forEach(p=>{
+    const day=civilToIso(p.civilStartTime)|| (p.civilStartTime&&typeof p.civilStartTime==='string'?p.civilStartTime.slice(0,10):null);
+    if(day) put(day,p);
+  });
+}
+
+async function run(){
+  $('go').disabled=true; $('stat').textContent='waiting for Google sign-in…';
+  const tok=await new Promise((res,rej)=>{
+    try{
+      const tc=google.accounts.oauth2.initTokenClient({
+        client_id:CLIENT_ID, scope:SCOPES, hint:'tomhunter848@gmail.com',
+        callback:t=>t&&t.access_token?res(t):rej(t),
+        error_callback:e=>rej(e)
+      });
+      tc.requestAccessToken();
+    }catch(e){rej(e);}
+  }).catch(e=>{ note('GIS token',false,JSON.stringify(e).slice(0,200)); return null; });
+  if(!tok){ $('stat').textContent='sign-in failed / dismissed'; $('go').disabled=false; return; }
+  note('GIS token',true,'granted scopes: '+(tok.scope||'?')+' · expires in '+(tok.expires_in||'?')+'s');
+  $('stat').textContent='running '+9+' calls…';
+  const T=tok.access_token;
+
+  /* -- the strip metrics: dailyRollUp, closed-open [START, ENDX) -- */
+  const range={range:{start:civil(START),end:civil(ENDX)},windowSizeDays:1};
+  const r1=await call('steps dailyRollUp','POST',API+'steps/dataPoints:dailyRollUp',range,T);
+  rollupRows(r1,(d,p)=>{ dayRow(d).steps=pickNum(p,['steps.count','value.steps.count','count','value.count']); });
+  const r2=await call('total-calories dailyRollUp','POST',API+'total-calories/dataPoints:dailyRollUp',range,T);
+  rollupRows(r2,(d,p)=>{ dayRow(d).calories=pickNum(p,['totalCalories.kcalSum','value.totalCalories.kcalSum','totalCalories.kcal','kcalSum','value.kcalSum','totalCalories.energy.kcal']); });
+  const r3=await call('active-minutes dailyRollUp','POST',API+'active-minutes/dataPoints:dailyRollUp',range,T);
+  rollupRows(r3,(d,p)=>{
+    const arr=(p.activeMinutes&&p.activeMinutes.activeMinutesRollupByActivityLevel)||(p.value&&p.value.activeMinutes&&p.value.activeMinutes.activeMinutesRollupByActivityLevel)||null;
+    if(Array.isArray(arr)){ let m=0; arr.forEach(x=>{ if(/MODERATE|VIGOROUS|FAIRLY|VERY/i.test(x.activityLevel||'')) m+=(x.activeMinutesSum||0); }); dayRow(d).activeMins=m; dayRow(d)._amRaw=arr; }
+    else dayRow(d).activeMins=pickNum(p,['activeMinutes.sum','value.activeMinutes.sum']);
+  });
+  const r4=await call('active-zone-minutes dailyRollUp','POST',API+'active-zone-minutes/dataPoints:dailyRollUp',range,T);
+  rollupRows(r4,(d,p)=>{
+    const z=p.activeZoneMinutes||p.value&&p.value.activeZoneMinutes||{};
+    const f=pickNum(z,['sumInFatBurnHeartZone'])||0, c=pickNum(z,['sumInCardioHeartZone'])||0, k=pickNum(z,['sumInPeakHeartZone'])||0;
+    dayRow(d).azm=f+2*c+2*k; dayRow(d)._azmRaw=z;
+  });
+
+  /* -- sleep sessions: list, filtered on civil_end_time, ordered desc -- */
+  const sf=encodeURIComponent('sleep.interval.civil_end_time >= "'+START+'" AND sleep.interval.civil_end_time < "'+ENDX+'"');
+  const r5=await call('sleep list','GET',API+'sleep/dataPoints?pageSize=25&filter='+sf,null,T);
+  (r5&&r5.dataPoints||[]).forEach(p=>{
+    const s=p.sleep; if(!s) return;
+    const end=s.interval&&(civilToIso(s.interval.civilEndTime)||String(s.interval.endTime||'').slice(0,10));
+    if(!end) return;
+    const mins=pickNum(s,['summary.minutesAsleep'])??null;
+    const row=dayRow(end);
+    if(s.metadata&&s.metadata.nap){ row.napMins=(row.napMins||0)+(mins||0); }
+    else{ row.sleepMins=(row.sleepMins||0)+(mins||0); row.sleepType=s.type; row.stages=(s.summary&&s.summary.stagesSummary)||s.stages&&('segments:'+s.stages.length); }
+  });
+
+  /* -- richer dailies: list with date filter -- */
+  async function daily(name,dt,fkey,put){
+    const f=encodeURIComponent(fkey+'.date >= "'+START+'" AND '+fkey+'.date < "'+ENDX+'"');
+    const j=await call(name,'GET',API+dt+'/dataPoints?pageSize=100&filter='+f,null,T);
+    (j&&j.dataPoints||[]).forEach(p=>put(p));
+  }
+  await daily('daily-resting-heart-rate','daily-resting-heart-rate','daily_resting_heart_rate',
+    p=>{ const v=p.dailyRestingHeartRate; if(v&&v.date) dayRow(civilToIso({date:v.date})).rhr=v.beatsPerMinute; });
+  await daily('daily-heart-rate-variability','daily-heart-rate-variability','daily_heart_rate_variability',
+    p=>{ const v=p.dailyHeartRateVariability; if(v&&v.date) dayRow(civilToIso({date:v.date})).hrv=v.averageHeartRateVariabilityMilliseconds; });
+  await daily('daily-respiratory-rate','daily-respiratory-rate','daily_respiratory_rate',
+    p=>{ const v=p.dailyRespiratoryRate; if(v&&v.date) dayRow(civilToIso({date:v.date})).br=pickNum(v,['breathsPerMinute','averageBreathsPerMinute','respiratoryRate']); });
+  await daily('daily-oxygen-saturation','daily-oxygen-saturation','daily_oxygen_saturation',
+    p=>{ const v=p.dailyOxygenSaturation; if(v&&v.date) dayRow(civilToIso({date:v.date})).spo2=pickNum(v,['averagePercentage','percentage','averageOxygenSaturationPercentage']); });
+  await daily('daily-vo2-max','daily-vo2-max','daily_vo2_max',
+    p=>{ const v=p.dailyVo2Max; if(v&&v.date) dayRow(civilToIso({date:v.date})).vo2=pickNum(v,['vo2Max','value','vo2MaxMlPerKgPerMin']); });
+
+  /* -- verdict -- */
+  const names=Object.keys(results);
+  const dead=names.filter(n=>results[n].http===null);
+  const denied=names.filter(n=>results[n].http===401||results[n].http===403);
+  const okN=names.filter(n=>results[n].http===200).length;
+  const v=$('verdict');
+  if(dead.length===names.length){ v.className='verdict fail'; v.textContent='CORS/NETWORK FAIL — no call got a response. HARD STOP: worker-proxy fallback plan applies.'; }
+  else if(dead.length){ v.className='verdict mixed'; v.textContent='MIXED — '+okN+'/'+names.length+' calls OK, no-response on: '+dead.join(', '); }
+  else if(okN===0){ v.className='verdict fail'; v.textContent='CORS PASSES but no call succeeded ('+(denied.length?'auth/scope errors — check consent + test-user 848':'see errors above')+').'; }
+  else{ v.className='verdict pass'; v.textContent='CORS PASS — '+okN+'/'+names.length+' calls returned 200. Browser-direct transport is GO for v2.3.'; }
+
+  /* -- parity vs the planner's stored Fitbit strip (READ-ONLY peek) -- */
+  let fit={};
+  try{ const db=JSON.parse(localStorage.getItem('wp:reeng:proto:v1')||'{}'); fit=(db.health&&db.health.days)||{}; }catch(e){}
+  const days=[]; for(let i=DAYS-1;i>=0;i--) days.push(addDays(TODAY,-i));
+  const fmt=v=>v==null?'<td class="miss">–</td>':'<td>'+(Math.round(v*10)/10)+'</td>';
+  const cmp=(g,f)=>{ if(g==null&&f==null) return '<td class="miss">–</td>';
+    if(g==null||f==null) return '<td class="diff">'+(g==null?'–':Math.round(g))+' / '+(f==null?'–':Math.round(f))+'</td>';
+    const close=Math.abs(g-f)<=Math.max(3,0.03*Math.max(g,f));
+    return '<td class="'+(close?'match':'diff')+'">'+Math.round(g)+' / '+Math.round(f)+'</td>'; };
+  let h='<h2 style="font-size:15px">Parity — Google / Fitbit-stored (steps · kcal · active min · sleep min)</h2>'+
+    '<table><tr><th>day</th><th>steps G/F</th><th>kcal G/F</th><th>act G/F</th><th>sleep G/F</th><th>AZM</th><th>RHR</th><th>HRV ms</th><th>breath</th><th>SpO2</th><th>VO2</th><th>nap</th><th>stage type</th></tr>';
+  days.forEach(d=>{
+    const g=rows[d]||{}, f=fit[d]||{};
+    h+='<tr><td>'+d+'</td>'+cmp(g.steps,f.steps)+cmp(g.calories,f.caloriesOut)+cmp(g.activeMins,f.activeMins)+cmp(g.sleepMins,f.sleepMins)+
+       fmt(g.azm)+fmt(g.rhr)+fmt(g.hrv)+fmt(g.br)+fmt(g.spo2)+fmt(g.vo2)+fmt(g.napMins)+'<td>'+(g.sleepType||'–')+'</td></tr>';
+  });
+  h+='</table><p class="note">G/F cells: green = within 3%, amber = differs (timezone edges and "Fitbit omits BMR-only days" are expected causes — judge by eye). Google civil days should line up 1:1 with Fitbit dates.</p>';
+  $('tables').innerHTML=h;
+  $('stat').textContent='done — screenshot this page or just tell Claude the verdict.';
+}
+$('go').addEventListener('click',run);
+</script>
+</body>
+</html>
