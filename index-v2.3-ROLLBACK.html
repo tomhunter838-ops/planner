@@ -306,7 +306,7 @@
   .dlg input:focus, .dlg textarea:focus{ outline:none; border-color:var(--p-line); }
   .dlg textarea{ min-height:120px; resize:vertical; line-height:1.5; }
   .dlg .timez{ display:flex; gap:10px; align-items:center; } .dlg .timez input{ text-align:center; }
-  .dlg .acts{ display:flex; gap:10px; margin-top:18px; position:sticky; bottom:-1px; background:var(--paper); padding-bottom:2px; }
+  .dlg .acts{ display:flex; gap:10px; margin-top:18px; }
   .dlg .acts button{ flex:1; height:46px; border-radius:13px; font-size:14px; font-weight:680; }
   .dlg .acts .cancel{ background:var(--paper-2); border:1px solid var(--hair); color:var(--ink-2); }
   .dlg .acts .save{ background:var(--p); color:#fff; }
@@ -420,26 +420,12 @@
   @keyframes thinkpulse{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
   .proprows{ display:flex; flex-direction:column; gap:7px; margin:6px 0 2px; }
   .proprow{ background:var(--paper-2); border:1px solid var(--hair); border-radius:11px; padding:10px 12px; font-size:13.5px; line-height:1.4; display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
-  .prop-meta{ font-size:11px; font-weight:680; color:var(--muted); }
-  /* v2.4 (panel: UI + iPhone seats): the sheet that asks "apply?" must always show its own
-     Apply and Keep buttons, and a pasted link must never burst the row. The provenance line is
-     a sentence now, not a trailing chip, so it sits under the label rather than ragged-right. */
-  .proprow .prop-meta{ flex:1 1 100%; margin-left:0; }
-  .proprows{ max-height:min(46vh,380px); overflow:auto; overscroll-behavior:contain; }
-  .proprow{ min-width:0; overflow-wrap:anywhere; word-break:break-word; }
-  .proprow b{ min-width:0; overflow-wrap:anywhere; }
+  .prop-meta{ margin-left:auto; font-size:11px; font-weight:680; color:var(--muted); }
   .stuckrows{ display:flex; flex-direction:column; gap:6px; margin-top:9px; }
   .stuckrow{ display:flex; align-items:center; gap:10px; }
   .sr-l{ flex:1; min-width:0; font-size:13px; font-weight:580; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sr-b{ flex:0 0 auto; font-size:11.5px; font-weight:700; color:var(--claude); background:var(--claude-wash); border:1px solid var(--claude-line); border-radius:9px; padding:6px 10px; }
-  .claudecard p{ overflow-wrap:anywhere; }   /* v2.4 (panel: UI seat): a pasted link in a read must not pan the page */
   .cc-foot{ margin-top:10px; font-size:11px; color:var(--muted); line-height:1.5; }
-  /* v2.4 (panel: iPhone seat): the four Claude entry points were inert in v2.3 and are now
-     load-bearing — give them a thumb-sized hit area without changing what is drawn. */
-  [data-lay="phone"] .cc-foot .linkbtn{ display:inline-flex; align-items:center; min-height:44px; margin-top:-15px; margin-bottom:-15px; }
-  [data-lay="phone"] .eyebrow .addmini{ display:inline-flex; align-items:center; min-height:44px; margin-top:-16px; margin-bottom:-16px; position:relative; z-index:1; }   /* .t is also positioned and comes later, so the enlarged target needs to win the paint order or its bottom 7px is dead */
-  [data-lay="phone"] .sr-b{ display:inline-flex; align-items:center; min-height:44px; margin-top:-8px; margin-bottom:-8px; }
-  [data-lay="phone"] .stuckrow{ margin:9px 0; }
   .trust{ background:linear-gradient(160deg,#f3eef6,var(--paper)); border:1px solid var(--claude-line); border-radius:16px; padding:15px; box-shadow:var(--shadow-1); }
   .trust-h{ font-size:13.5px; font-weight:760; color:var(--claude); }
   .trust-v{ font-size:11.5px; color:var(--muted); font-weight:600; margin-top:3px; }
@@ -611,7 +597,7 @@ function buildSeed(){
 function installDefaultProjects(db){
   if(db.projects && db.projects.length) return;
   db.projects=[
-    { id:'malaga', name:'Málaga move', goal:'Build the runway to relocate the family to Málaga', due:'2027-01-31', color:'#bd5f37', pinned:true, claude:true },
+    { id:'malaga', name:'Málaga move', goal:'Build the runway to relocate the family to Málaga', due:'2026-12-01', color:'#bd5f37', pinned:true, claude:true },
     { id:'onward', name:'Onward 5-year plan', goal:'Win & deliver the Onward strategy and BMS plan', due:'2026-09-30', color:'#557785', claude:true },
   ];
   const tagAll=(pred,fn)=>{ Object.values(db.weeks||{}).forEach(wk=>{ (wk.days||[]).forEach(d=>['personal','work'].forEach(k=>(d[k]||[]).forEach(t=>{ if(pred(t))fn(t); }))); ['personal','work'].forEach(k=>((wk.future&&wk.future[k])||[]).forEach(t=>{ if(pred(t))fn(t); })); }); };
@@ -702,11 +688,8 @@ const ui = {
   fullDay: false,
   doneToday: 0,
   projectId: null,               // open project in detail view
-  /* v2.4 (panel: stress seat): a read belongs to ONE week, so it is stored under that week's
-     key — { '<monday>': {state:'loading'|'done'|'budget'|'error', text, at} }. Stepping the
-     week no longer throws a read away (and no longer wastes an in-flight call); it simply
-     shows the read for the week you are looking at, or the invitation to ask. */
-  claudeReads: {},
+  claudeReview: false,           // weekly review: false | 'loading' | 'done' | 'error'
+  claudeReviewText: null,
 };
 
 /* ---------- data access ---------- */
@@ -1175,25 +1158,14 @@ function renderReview(){
       <div class="hstat"><span class="hk">Avg steps</span><span class="hv">${stepN?Math.round(stepSum/stepN).toLocaleString():'—'}</span><span class="hs">${stepN} day${stepN!==1?'s':''} tracked</span></div>
     </div>`;
 
-  /* v2.4: with no malaga project this line used to read "Málaga: ." */
-  const _mlLine = malagaLine();
-  const cannedRead = `You completed <b>${dn} of ${tot}</b> (${pct}%) — this week looks <b>${balance}</b>.${stuck.length?` <b>${stuck.length}</b> thing${stuck.length!==1?'s have':' has'} slid 3+ weeks; that's almost always scope, not willpower.`:' Nothing is badly stuck — good.'}${_mlLine?` <b>Málaga:</b> ${_mlLine}.`:''}`;
-  /* v2.4: a read belongs to the week it was made from. Stepping the Week view — or a cloud
-     adopt, which resets ui.weekKey — must never leave last week's read on screen as though it
-     described the week now being looked at. */
-  const _rdKey=(ui.weekKey||todayMonday), _rd=(ui.claudeReads||{})[_rdKey]||null;
-  const _rdWc=(()=>{ const [ry,rm,rd2]=_rdKey.split('-').map(Number); return `w/c ${rd2} ${MON[rm-1]}`; })();
+  const cannedRead = `You completed <b>${dn} of ${tot}</b> (${pct}%) — this week looks <b>${balance}</b>.${stuck.length?` <b>${stuck.length}</b> thing${stuck.length!==1?'s have':' has'} slid 3+ weeks; that's almost always scope, not willpower.`:' Nothing is badly stuck — good.'} <b>Málaga:</b> ${malagaLine()}.`;
   let claudeReviewCard;
-  if(_rd && _rd.state==='loading'){
-    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read · ${_rdWc}</div><p class="thinkrow">Reading your week…</p></div>`;
-  } else if(_rd && _rd.state==='done' && _rd.text){
-    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read · ${_rdWc}</div><p>${mdLite(_rd.text).replace(/\n+/g,'</p><p style="margin-top:8px">')}</p><div class="cc-foot">Live from Claude, based on your planner ${readStamp(_rd.at)}. <button class="linkbtn" data-act="claude-review">Read again</button></div></div>`;
-  } else if(_rd && _rd.state==='busy'){
-    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read · Claude is busy</div><p>${cannedRead}</p><div class="cc-foot">Claude has been asked a lot in the last minute — try again shortly. This is the planner’s own read. <button class="linkbtn" data-act="claude-review">Try again</button></div></div>`;
-  } else if(_rd && _rd.state==='budget'){
-    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read · daily limit</div><p>${cannedRead}</p><div class="cc-foot">Claude’s daily budget is used up — it resets overnight. This is the planner’s own read. <button class="linkbtn" data-act="claude-review">Try again</button></div></div>`;
-  } else if(_rd && _rd.state==='error'){
-    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read · offline</div><p>${cannedRead}</p><div class="cc-foot">Claude was unreachable — this is the planner’s own read. <button class="linkbtn" data-act="claude-review">Try again</button></div></div>`;
+  if(ui.claudeReview==='loading'){
+    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read</div><p class="thinkrow">Reading your week…</p></div>`;
+  } else if(ui.claudeReview==='done' && ui.claudeReviewText){
+    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read</div><p>${mdLite(ui.claudeReviewText).replace(/\n+/g,'</p><p style="margin-top:8px">')}</p><div class="cc-foot">Live from Claude, based on your planner data. <button class="linkbtn" data-act="claude-review">Read again</button></div></div>`;
+  } else if(ui.claudeReview==='error'){
+    claudeReviewCard = `<div class="claudecard"><div class="cc-h"><span class="pill claude">✶ Claude</span> Weekly read · offline</div><p>${cannedRead}</p><div class="cc-foot">Claude was unreachable — this is the planner's own read. <button class="linkbtn" data-act="claude-review">Try again</button></div></div>`;
   } else {
     claudeReviewCard = `<button class="showfull" data-act="claude-review" style="background:var(--claude-wash);border-color:var(--claude-line);color:var(--claude)">✶ Ask Claude to review my week</button>`;
   }
@@ -1204,7 +1176,7 @@ function renderReview(){
     : '';
 
   view.innerHTML = wrap + `
-    <div class="dayhead"><div><div class="dow" style="font-size:26px">Weekly review</div><div class="date">${(()=>{ const [ry,rm,rd3]=wk.key.split('-').map(Number); return `w/c ${rd3} ${MON[rm-1]} ${ry}${wk.key===todayMonday?' · this week':''}`; })()} — you and Claude review the week, and the planner</div></div></div>
+    <div class="dayhead"><div><div class="dow" style="font-size:26px">Weekly review</div><div class="date">you and Claude review the week — and the planner</div></div></div>
     <div style="display:flex;gap:10px;margin-top:6px">${card('Done this week', dn, `of ${tot} · ${pct}%`)}${card('Personal', `${pd}/${pt}`, 'done')}${card('Work', `${wd}/${wt}`, 'done')}</div>
     <div style="height:10px;background:var(--good-wash);border-radius:7px;overflow:hidden;margin:14px 0 4px"><div style="height:100%;width:${pct}%;background:var(--good);border-radius:7px;transition:width .4s"></div></div>
     ${bodyCard}
@@ -1214,7 +1186,7 @@ function renderReview(){
     ${stuck.length?`<div class="eyebrow">Gentle nudge<span class="ln"></span></div>
       <div style="background:#f6eed8;border:1px solid #ead9b3;border-radius:14px;padding:14px;box-shadow:var(--shadow-1)">
         <div style="font-weight:660;font-size:14px;color:var(--gold)">A few things keep sliding</div>
-        <div class="stuckrows">${stuck.slice(0,4).map(x=>`<div class="stuckrow"><span class="sr-l">${esc(x.t.label)}</span><button class="sr-b" data-act="claude-shrink" data-w="${x.w}" data-d="${x.d}" data-id="${x.t.id}">${(x.t.subs&&x.t.subs.length)?`✶ ${x.t.subs.length} step${x.t.subs.length!==1?'s':''} added`:'✶ Shrink it'}</button></div>`).join('')}</div>
+        <div class="stuckrows">${stuck.slice(0,4).map(x=>`<div class="stuckrow"><span class="sr-l">${esc(x.t.label)}</span><button class="sr-b" data-act="claude-shrink" data-w="${x.w}" data-d="${x.d}" data-id="${x.t.id}">✶ Shrink it</button></div>`).join('')}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5">Not a failure — usually a sign it's too big. “Shrink it” asks Claude for the smallest first steps.</div>
       </div>`:''}
     ${claudeTasksSection}
@@ -1576,11 +1548,7 @@ function adoptRemote(remote, etag){
   reseedUID(DB);
   odState.etag=etag||odState.etag; odState.baseRev=DB.rev; odPersistMeta();
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({},DB,{_uid:UID}))); }catch(e){}
-  ui.weekKey=null;
-  ui.claudeReads={}; _readsEpoch++;   /* v2.4 (panel: stress seat): the weeks just changed under us, so every
-                          stored read describes a copy that no longer exists — drop them rather
-                          than let a confident, correctly-timestamped card describe the old one. */
-  render();
+  ui.weekKey=null; render();
   odLog('pull-adopt', {rev:DB.rev, tasks:countTasksIn(DB).tasks, dated:datedCount(DB)});
 }
 async function odReconcile(){
@@ -1734,9 +1702,6 @@ async function openReconcile(){
   if(df.onlyLocal) bits.push('<b>'+df.onlyLocal+'</b> only on this device');
   if(df.onlyCloud) bits.push('<b>'+df.onlyCloud+'</b> only in the cloud');
   const diffLine = bits.length ? 'Differences: '+bits.join(' · ')+'.' : 'The two copies look identical in content.';
-  _dlgGen++;   /* v2.4 (panel: stress seat): this writes the dialog directly, so it must take the
-                  identity with it — otherwise a Claude reply still in flight draws its proposal
-                  sheet straight over the divergence prompt. */
   dlg.innerHTML=`<div class="dlg"><h3>Two copies found</h3>
     <p>Nothing has changed yet — pick which becomes the source.</p>
     <div class="reccards">
@@ -1759,11 +1724,6 @@ async function openReconcile(){
     const doAdopt=()=>{
       DB.weeks=adopted.weeks; DB.recur=adopted.recur||DB.recur; if(adopted.projects)DB.projects=adopted.projects; if(adopted.inbox)DB.inbox=adopted.inbox; if(adopted.shopping)DB.shopping=adopted.shopping; mergeHealth(adopted.health); if(adopted.gym)DB.gym=adopted.gym;
       reseedUID(DB);   // adopted copy may carry higher ids than this device's counter — never reissue them
-      /* v2.4 (panel: stress seat, second pass): this is the OTHER place the weeks are replaced
-         wholesale — and the one that runs when the two copies genuinely disagree. Any stored
-         weekly read describes the copy just discarded, so drop it here too, and bump the epoch
-         so a read still in flight never lands on top of the imported week. */
-      ui.claudeReads={}; _readsEpoch++;
       saveDB(); render(); flashToast(`Imported ${after} tasks from cloud ✓`); if(!odState.live) setTimeout(function(){ offerMakeLive(after); }, 500);
     };
     const localN=countTasksIn(DB).tasks;
@@ -2238,14 +2198,8 @@ function doPullPools(){
    DIALOGS (native <dialog>, themed — replaces prompt())
    ============================================================ */
 const dlg=document.getElementById('dlg');
-/* v2.4: a dialog identity token. Every async Claude feature captures it when it opens its
-   sheet; a reply that lands after the sheet was cancelled, or after ANOTHER dialog was opened,
-   fails dlgIs() and draws nothing — it can no longer overwrite a different dialog (destroying
-   whatever was typed into it) or apply into a sheet the user has moved on from. */
-let _dlgGen=0;
-function dlgIs(g){ return !!(dlg && dlg.open && _dlgGen===g); }
-function openDialog(html){ _dlgGen++; dlg.innerHTML=`<div class="dlg">${html}</div>`; dlg.showModal(); const f=dlg.querySelector('input,textarea'); if(f){ setTimeout(()=>{f.focus(); if(f.select)f.select();},30); } }
-function closeDialog(){ _dlgGen++; dlg.close(); if(_healthRenderDeferred) renderDeferred(); }   /* v2.3: flush a health redraw parked behind the dialog */
+function openDialog(html){ dlg.innerHTML=`<div class="dlg">${html}</div>`; dlg.showModal(); const f=dlg.querySelector('input,textarea'); if(f){ setTimeout(()=>{f.focus(); if(f.select)f.select();},30); } }
+function closeDialog(){ dlg.close(); if(_healthRenderDeferred) renderDeferred(); }   /* v2.3: flush a health redraw parked behind the dialog */
 // themed yes/no — replaces native confirm() so every confirmation looks like the app
 function openConfirm(h, p, yesLabel, onYes){
   openDialog(`<h3>${h}</h3><p>${p}</p><div class="acts"><button class="cancel" data-x="no">Cancel</button><button class="save" data-x="yes">${yesLabel}</button></div>`);
@@ -2843,7 +2797,7 @@ function watchLayout(){
 /* ============================================================
    PROJECTS · REMINDERS · CLAUDE TASKS · TRUST  (v0.3 additions)
    ============================================================ */
-const APP_VERSION='v2.4';
+const APP_VERSION='v2.3';
 /* ============================================================
    CLAUDE BACKEND — the app talks to Claude directly.
    In this design lab: window.claude.complete (built in, no key).
@@ -2852,36 +2806,14 @@ const APP_VERSION='v2.4';
    else changes. All features are on-demand and CONFIRM-BEFORE-WRITE:
    Claude proposes, only you apply. A failure never breaks the planner.
    ============================================================ */
-const CLAUDE_PROXY_URL='https://planner-claude-proxy.tom-f71.workers.dev';   // v2.4: the transport worker. Bare URL — no key, no token, no query.
+const CLAUDE_PROXY_URL='';   // e.g. 'https://claude-proxy.tom-f71.workers.dev' once deployed
 function claudeBackend(){ if(window.claude && window.claude.complete) return 'lab'; if(CLAUDE_PROXY_URL) return 'worker'; return null; }
-const CLAUDE_TIMEOUT_MS=28000;   /* v2.4: a hung worker used to leave "Reading your week…" on screen for ever */
 async function askClaude(system, user, maxTokens){
   const be=claudeBackend(); if(!be) throw new Error('no Claude backend configured');
   if(be==='lab') return await window.claude.complete({ system, messages:[{role:'user',content:user}], max_tokens:maxTokens||800 });
-  const ctl=(typeof AbortController!=='undefined')?new AbortController():null;
-  const timer=ctl?setTimeout(()=>{ try{ ctl.abort(); }catch(e){} }, CLAUDE_TIMEOUT_MS):null;
-  try{
-    let r;
-    try{ r=await fetch(CLAUDE_PROXY_URL,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ system, user, max_tokens:maxTokens||800 }), signal:ctl?ctl.signal:undefined }); }
-    catch(e){ throw new Error((e&&(e.name==='AbortError'||e.code===20))?'Claude took too long to answer — nothing changed':'Claude was unreachable — nothing changed'); }
-    if(!r.ok){
-      /* the worker's own body used to die here: only r.ok was read. Carry the status AND which
-         brake fired, so a one-minute burst brake is never reported as "your day is used up"
-         (panel: connector seat). */
-      let info=null; try{ info=await r.json(); }catch(e){}
-      const minute = r.status===429 && info && info.retry==='minute';
-      const err=new Error(r.status===429
-        ? (minute?'Claude has been asked a lot in the last minute':'Claude’s daily budget is used up — it resets overnight')
-        : 'Claude proxy '+r.status);
-      err.status=r.status; err.retry=(r.status===429)?(minute?'minute':'day'):null; throw err;
-    }
-    let j; try{ j=await r.json(); }catch(e){ throw new Error('Claude sent a reply the planner could not read'); }
-    const _txt=j.text||j.completion||'';
-    /* an empty 200 used to leave the card silently back at the ask button — a tap that looked
-       like it did nothing, and cost a real call each retry (panel: UI/UX/stress/connector). */
-    if(!(''+_txt).trim()) throw new Error('Claude sent an empty reply');
-    return _txt;
-  } finally { if(timer) clearTimeout(timer); }
+  const r=await fetch(CLAUDE_PROXY_URL,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ system, user, max_tokens:maxTokens||800 }) });
+  if(!r.ok) throw new Error('Claude proxy '+r.status);
+  const j=await r.json(); return j.text||j.completion||'';
 }
 function extractJSON(s){ const m=(''+s).match(/\{[\s\S]*\}/); if(!m) throw new Error('no JSON in reply'); return JSON.parse(m[0]); }
 function mdLite(s){
@@ -2895,249 +2827,76 @@ function mdLite(s){
   h=h.replace(/\*/g,'');  // any stragglers
   return h;
 }
-const COACH_SYS='You are the calm coach inside a weekly planner used by one person with severe combined ADHD who runs a busy engineering consultancy and has a one-year-old son. Be brief, warm, concrete. Celebrate motion; never scold. Never use red-flag language.';
+const COACH_SYS='You are the calm coach inside a weekly planner used by one person with severe combined ADHD who is rebuilding momentum with a new baby. Be brief, warm, concrete. Celebrate motion; never scold. Never use red-flag language.';
 
-const _claudeRuns={};                            /* v2.4: the current read per week */
-let _readsEpoch=0;                               /* bumped whenever the store is replaced under us */
 async function runClaudeReview(){
-  const wk=(ui.weekKey||todayMonday);
-  const reads=(ui.claudeReads=ui.claudeReads||{});
-  /* a second tap while THIS week's read is in flight costs nothing — the stored state is the
-     single source of truth, so the guard holds even when the loading render is parked behind a
-     drag or a dialog. Asking about a DIFFERENT week is a new question, and its answer is filed
-     under that week: stepping the view no longer throws a read away or wastes a call in flight. */
-  if(reads[wk] && reads[wk].state==='loading') return;
-  if(!claudeBackend()){ reads[wk]={state:'error', text:null, at:Date.now()}; renderDeferred(); return; }
-  const myRun=(_claudeRuns[wk]=(_claudeRuns[wk]||0)+1), myEpoch=_readsEpoch;
-  reads[wk]={state:'loading', text:null, at:Date.now()}; renderDeferred();
-  let state, text=null;
+  if(!claudeBackend()){ ui.claudeReview='error'; renderReview(); return; }
+  ui.claudeReview='loading'; renderReview();
   try{
-    const txt=await askClaude(COACH_SYS+' Reply in plain prose only — no markdown, no asterisks, no headers, no bullet lists. Max 110 words, 2 short paragraphs separated by a blank line: (1) an honest, kind read of the week; (2) ONE specific suggestion for next week, and — only if the summary mentions Málaga — one line on the Málaga move.', buildWeekSummary(), 500);
-    text=(''+txt).trim(); state='done';
-  }catch(e){ state=(e&&e.status===429)?((e.retry==='minute')?'busy':'budget'):'error'; }
-  /* superseded by a newer ask for the same week, or asked of a copy of the planner that has
-     since been replaced by the cloud — either way the reply is stale and never lands. */
-  if(_claudeRuns[wk]!==myRun || myEpoch!==_readsEpoch) return;
-  (ui.claudeReads=ui.claudeReads||{})[wk]={state, text, at:Date.now()};
-  renderDeferred();                              /* v2.3 invariant: never rebuild the page under a drag or an open dialog */
+    const txt=await askClaude(COACH_SYS+' Reply in plain prose only — no markdown, no asterisks, no headers, no bullet lists. Max 110 words, 2 short paragraphs separated by a blank line: (1) an honest, kind read of the week; (2) ONE specific suggestion for next week, and one line on the Málaga project.', buildWeekSummary(), 500);
+    ui.claudeReviewText=(''+txt).trim(); ui.claudeReview='done';
+  }catch(e){ ui.claudeReview='error'; }
+  if(ui.view==='review') renderReview();
 }
 async function claudeShrink(c){
   if(!claudeBackend()){ flashToast('Claude runs here in the lab — or via the worker once live'); return; }
   openDialog(`<h3>Shrinking “${esc(c.t.label)}”</h3><p class="thinkrow">✶ Finding the smallest first steps…</p><div class="acts"><button class="cancel" data-x="c">Cancel</button></div>`);
-  const g=_dlgGen, tid=c.t.id;
-  let _shrinkApplied=false;                      /* one apply per proposal set, ever */
   dlg.querySelector('[data-x=c]').addEventListener('click',closeDialog);
   let steps;
   try{
     const txt=await askClaude(COACH_SYS+' Reply ONLY with JSON: {"steps":["..."]} — 2 or 3 steps, each under 8 words, each startable in under 10 minutes.',
       `Stuck task: "${c.t.label}" (${c.t.kind}), carried ${c.t.defers} weeks.`+(c.t.subs.length?` Existing sub-tasks: ${c.t.subs.map(s=>s.label).join('; ')}.`:''), 300);
-    steps=extractJSON(txt).steps.filter(s=>typeof s==='string'&&s.trim()).map(s=>s.trim().slice(0,200)).slice(0,3);
+    steps=extractJSON(txt).steps.filter(s=>typeof s==='string'&&s.trim()).slice(0,3);
     if(!steps.length) throw new Error('no steps');
-  }catch(e){ if(dlgIs(g)){ const c=claudeErrCopy(e,'Nothing changed.'); claudeRefuse(c.title, c.body); } return; }
-  if(!dlgIs(g)) return;
+  }catch(e){ if(dlg.open){ dlg.innerHTML=`<div class="dlg"><h3>Couldn’t reach Claude</h3><p>Nothing changed. ${esc(e.message)}</p><div class="acts"><button class="save" data-x="k">OK</button></div></div>`; dlg.querySelector('[data-x=k]').addEventListener('click',closeDialog); } return; }
+  if(!dlg.open) return;
   dlg.innerHTML=`<div class="dlg"><h3>Tiny first steps</h3><p>For “${esc(c.t.label)}” — add as sub-tasks?</p>
     <div class="proprows">${steps.map(s=>`<div class="proprow">▸ ${esc(s)}</div>`).join('')}</div>
     <div class="acts"><button class="cancel" data-x="no">Not now</button><button class="save" data-x="yes">Add ${steps.length} steps</button></div></div>`;
   dlg.querySelector('[data-x=no]').addEventListener('click',closeDialog);
-  dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{
-    /* v2.4: the task object this run captured can be an orphan by now — a cloud adopt
-       replaces DB.weeks wholesale, so c.t may be detached and a push into it would be lost
-       silently while still bumping rev. Re-find the LIVE task by id, or refuse loudly. */
-    if(_shrinkApplied) return; _shrinkApplied=true;
-    const live=findTaskById(tid);
-    if(!live){ _shrinkApplied=false; claudeStaleDialog('That task moved while Claude was thinking, so nothing was added. Open it again and ask for the steps.'); return; }
-    live.t.subs=live.t.subs||[];
-    steps.forEach(s=>live.t.subs.push({id:uid(),label:s,done:false})); live.t.open=true; saveDB(); closeDialog(); rerenderInPlace(); flashToast(`Added ${steps.length} step${steps.length!==1?'s':''} — start with step 1`);
-  });
+  dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{ steps.forEach(s=>c.t.subs.push({id:uid(),label:s,done:false})); c.t.open=true; saveDB(); closeDialog(); rerenderInPlace(); flashToast('Added — the win is starting step 1'); });
 }
 async function claudeTriage(){
   const items=(DB.inbox||[]).slice(0,10); if(!items.length){ flashToast('Inbox is empty'); return; }
-  const notSent=(DB.inbox||[]).length-items.length;   /* v2.4 (panel: UX/stress/iPhone): the cap is 10 — anything beyond it stays put, and must be counted as staying */
   if(!claudeBackend()){ flashToast('Claude runs here in the lab — or via the worker once live'); return; }
   openDialog(`<h3>Sorting your brain-dump</h3><p class="thinkrow">✶ Suggesting a home for each…</p><div class="acts"><button class="cancel" data-x="c">Cancel</button></div>`);
-  const g=_dlgGen, dayAtOpen=todayISO;          /* v2.4: the sheet shows real dates — they are only true while the date holds */
-  let _triageApplied=false;                      /* one apply per proposal set, ever */
   dlg.querySelector('[data-x=c]').addEventListener('click',closeDialog);
   let props;
   try{
-    const txt=await askClaude('You sort captured thoughts into a weekly planner. Reply ONLY with JSON: {"items":[{"i":1,"label":"...","kind":"personal|work","when":"today|tomorrow|mon|tue|wed|thu|fri|sat|sun|future"}]} where i is the NUMBER of the thought being placed. Place only the thoughts you can place confidently and simply leave the others out. Keep labels as given (lightly tidied). Anything vague or someday-ish goes to future.',
+    const txt=await askClaude('You sort captured thoughts into a weekly planner. Reply ONLY with JSON: {"items":[{"label":"...","kind":"personal|work","when":"today|tomorrow|mon|tue|wed|thu|fri|sat|sun|future"}]}. Keep labels as given (lightly tidied). Anything vague or someday-ish goes to future.',
       `Today is ${DOWFULL[todayDayIdx()]}. Thoughts:\n`+items.map((x,i)=>(i+1)+'. '+x.label).join('\n'), 600);
-    props=triageResolve(extractJSON(txt).items.filter(p=>p&&p.label).slice(0,items.length), items);
+    props=extractJSON(txt).items.filter(p=>p&&p.label).slice(0,items.length);
     if(!props.length) throw new Error('no items');
-  }catch(e){
-    /* a reply that arrived but matched nothing is not an outage — say which it was, and either
-       way say the only thing that matters: the inbox is untouched. */
-    if(dlgIs(g)){
-      if(/no items/.test(e.message||'')) claudeRefuse('Nothing was sorted','Claude’s suggestion didn’t line up with your thoughts, so your inbox is untouched. Try again.');
-      else { const c=claudeErrCopy(e,'Your inbox is untouched.'); claudeRefuse(c.title, c.body); }
-    }
-    return; }
-  if(!dlgIs(g)) return;
-  const leftN=(items.length-props.length)+notSent;
+  }catch(e){ if(dlg.open){ dlg.innerHTML=`<div class="dlg"><h3>Couldn’t reach Claude</h3><p>Your inbox is untouched. ${esc(e.message)}</p><div class="acts"><button class="save" data-x="k">OK</button></div></div>`; dlg.querySelector('[data-x=k]').addEventListener('click',closeDialog); } return; }
+  if(!dlg.open) return;
   dlg.innerHTML=`<div class="dlg"><h3>Claude’s suggestion</h3><p>Where each thought should land — apply?</p>
-    <div class="proprows">${props.map(p=>`<div class="proprow"><b>${esc(p.label)}</b><span class="prop-meta">${esc(p.kind)} · ${esc(whenLabel(p.when))}${(p._src&&p._src.label!==p.label)?` · from “${esc(p._src.label)}”`:''}</span></div>`).join('')}</div>
-    ${leftN?`<p class="prop-meta">${leftN} thought${leftN!==1?'s':''} stay${leftN===1?'s':''} in your inbox — nothing is deleted.${notSent?` Only your first ${items.length} went to Claude.`:''}</p>`:''}
-    <div class="acts"><button class="cancel" data-x="no">Keep in inbox</button><button class="save" data-x="yes">Apply ${props.length}</button></div></div>`;
+    <div class="proprows">${props.map(p=>`<div class="proprow"><b>${esc(p.label)}</b><span class="prop-meta">${esc(p.kind||'personal')} · ${esc(p.when||'future')}</span></div>`).join('')}</div>
+    <div class="acts"><button class="cancel" data-x="no">Keep in inbox</button><button class="save" data-x="yes">Apply all</button></div></div>`;
   dlg.querySelector('[data-x=no]').addEventListener('click',closeDialog);
   dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{
-    /* v2.4 (panel BLOCK, live-reproduced): the old code spliced the WHOLE batch out of the
-       inbox — 3 sent, 2 placed, the third permanently gone under a "Sorted 2" success toast.
-       Only the thoughts actually placed may leave, and only while they are still the very
-       objects in the very store this run was raised from. */
-    if(_triageApplied) return; _triageApplied=true;
-    /* the sheet promised "Mon 24 Aug"; after midnight the same tokens resolve a day later, so a
-       sheet held across the turn is refused rather than quietly landing somewhere else
-       (panel: stress seat). */
-    if(todayISO!==dayAtOpen){ _triageApplied=false; claudeRefuse('The date has turned', 'This suggestion was worked out yesterday, and the days it named have moved. Nothing was applied and nothing left your inbox — run “sort with Claude” again.'); return; }
-    const idx=[];
-    for(const p of props){ const i=(DB.inbox||[]).indexOf(p._src); if(i<0){ _triageApplied=false; claudeStaleDialog('Your inbox changed while Claude was thinking, so nothing was applied and nothing was deleted. Run “sort with Claude” again.'); return; } idx.push(i); }
-    /* resolve every destination BEFORE touching the store. A throw half-way through used to
-       leave tasks written into memory with their thoughts still in the inbox — no toast, no
-       error, and the orphans rode out on the next unrelated save (adversarial review). */
-    /* Resolve EVERY destination lane — week minting included — before a single task is written.
-       The re-review found the earlier split still called ensureWeek inside the commit, so a
-       throw on item n left items 1..n-1 written into memory while the refusal claimed nothing
-       had been. Everything that can throw now happens in the plan phase; the commit is nothing
-       but pushes onto arrays already in hand, which cannot fail part-way. */
-    let plan;
-    try{
-      plan=props.map(p=>{ const [wKey,di]=whenToTarget(p.when); const w=(wKey==='F')?todayMonday:wKey;
-        if(!w) throw new Error('no target week');
-        const wk2=ensureWeek(w);
-        const arr=(wKey==='F')?wk2.future[p.kind]:colArr(wk2,di,p.kind);
-        if(!Array.isArray(arr)) throw new Error('no lane');
-        return {label:p.label, kind:p.kind, arr}; });
-    }catch(e){ _triageApplied=false; claudeRefuse('Couldn’t place those', 'The planner couldn’t open the week they were headed for. Nothing was written and nothing left your inbox. If it happens again it’s the planner, not the suggestion.'); return; }
-    plan.forEach(x=>x.arr.push(T(x.label,x.kind)));
-    idx.sort((a,b)=>b-a).forEach(i=>DB.inbox.splice(i,1));
-    saveDB(); closeDialog(); rerenderInPlace();
-    /* the toast reports the inbox as it now IS — the batch's own arithmetic was wrong whenever
-       more than ten thoughts were waiting (panel: UX seat, BLOCK). */
-    const stillLeft=(DB.inbox||[]).length;
-    flashToast(stillLeft?`Sorted ${props.length} — ${stillLeft} still in your inbox`:`Sorted ${props.length} into your week`);
+    props.forEach(p=>{ const kind=p.kind==='work'?'work':'personal'; const [wKey,di]=whenToTarget(p.when); const wk2=ensureWeek(wKey==='F'?todayMonday:wKey); const arr=wKey==='F'?wk2.future[kind]:colArr(wk2,di,kind); arr.push(T(p.label,kind)); });
+    DB.inbox.splice(0,items.length); saveDB(); closeDialog(); rerenderInPlace(); flashToast(`Sorted ${props.length} into your week`);
   });
 }
-/* v2.4: the indexed proposal contract. Every proposal must resolve to exactly ONE inbox
-   thought — by the number the model was asked to echo, else by an exact label match, else
-   positionally — and each thought at most once. Anything that cannot be resolved is dropped
-   from the proposal set rather than guessed at, so a thought Claude never placed can never
-   be removed from the inbox. */
-const TRIAGE_WHEN=['today','tomorrow','mon','tue','wed','thu','fri','sat','sun','weekend','future','next week'];
-/* v2.4 (panel: stress seat): the sheet used to show the model's raw token — "mon" means today
-   before midnight and next Monday after it, with nothing on screen changing. Show the day it
-   will actually land on. */
-function whenLabel(when){
-  try{
-    const [wKey,di]=whenToTarget(when);
-    if(wKey==='F') return 'Unscheduled';
-    if(di==='W') return 'Weekend';
-    /* 'next week' is the one token that pairs a DATE key with the pool rather than a day index —
-       without this it fell through to addDays(key,'F') and rendered "undefined NaN undefined". */
-    if(di==='F'){ const [py,pm,pd]=wKey.split('-').map(Number); return `Unscheduled · w/c ${pd} ${MON[pm-1]}`; }
-    const iso=addDays(wKey,di); const [y,m,d]=iso.split('-').map(Number);
-    return `${DOW[(new Date(y,m-1,d).getDay()+6)%7]} ${d} ${MON[m-1]}`;
-  }catch(e){ return String(when||''); }
-}
-function triageResolve(props, items){
-  /* Every proposal must resolve to exactly ONE inbox thought before it is allowed to remove
-     anything: by the number the model was asked to echo, else by an exact label match, else by
-     a containment match that is UNAMBIGUOUS. There is deliberately NO positional fallback —
-     the adversarial review proved it: a reply that tidies labels and omits the numbers lines
-     the proposals up against the wrong thoughts, so the thought Claude never placed is the one
-     deleted, under a "nothing is deleted" sheet. Unresolvable proposals are simply dropped and
-     their thoughts stay in the inbox, which is always the safe direction. */
-  const used=new Set(), out=[];
-  const norm=s=>(''+s).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-  props.forEach(p=>{
-    /* the reply is untrusted input: coerce it into the shape the writer expects, or drop it.
-       An object label used to be written into the store as a task labelled [object Object];
-       a non-string `when` threw out of the apply handler half-way through. */
-    if(!p || typeof p.label!=='string') return;
-    const label=p.label.trim().slice(0,200); if(!label) return;
-    const kind=(p.kind==='work')?'work':'personal';
-    const whenRaw=(typeof p.when==='string')?p.when.toLowerCase().trim():'';
-    const when=TRIAGE_WHEN.includes(whenRaw)?whenRaw:'future';        // anything off-contract lands in Future, where it is visible
-    let i=-1;
-    const n=Number(p.i);
-    if(Number.isFinite(n) && n>=1 && n<=items.length && !used.has(n-1)) i=n-1;
-    if(i<0){ const want=norm(label); i=items.findIndex((it,k)=>!used.has(k) && norm(it.label)===want); }
-    if(i<0){
-      /* the model is told to keep labels but does tidy them, so an exact match often misses.
-         A word-subset match in either direction survives tidying, and is only accepted when
-         exactly ONE thought qualifies — two candidates is a guess, and a guess deletes the
-         wrong thought. */
-      const toks=x=>{ const t=norm(x).split(' ').filter(Boolean); return new Set(t); };
-      const wt=toks(label); const cands=[];
-      items.forEach((it,k)=>{ if(used.has(k)) return; const ht=toks(it.label);
-        if(!wt.size || !ht.size) return;
-        const wSub=[...wt].every(t=>ht.has(t)), hSub=[...ht].every(t=>wt.has(t));
-        if(wSub||hSub) cands.push(k); });
-      if(cands.length===1) i=cands[0];
-    }
-    if(i<0) return;
-    used.add(i); out.push({ label, kind, when, _src:items[i] });
-  });
-  return out;
-}
-/* v2.4 (panel: UX + iPhone + connector seats): the Review tab was given an honest budget state;
-   the other three features used to dress every failure as "Couldn't reach Claude" and print the
-   raw exception ("Claude proxy 500", a JSON parser message) at a man holding his own week. One
-   classifier, three plain outcomes, and the exception text never reaches him. */
-/* v2.4 (panel: stress seat): "at 08:12" reads as current. Once a read is not from today it must
-   say which day it was taken, or a two-day-old card looks like this morning's. */
-function readStamp(ts){
-  if(!ts) return 'a moment ago';
-  const d=new Date(ts), iso=isoOf(d.getFullYear(), d.getMonth(), d.getDate());
-  if(iso===todayISO) return 'at '+hhmm(ts);
-  return 'on '+DOW[(d.getDay()+6)%7]+' '+d.getDate()+' '+MON[d.getMonth()]+' at '+hhmm(ts);
-}
-function claudeErrCopy(e, tail){
-  const st=e&&e.status, msg=(e&&e.message)||'';
-  if(st===429) return (e&&e.retry==='minute')
-    ? { title:'Claude is busy', body:'Claude has been asked a lot in the last minute. '+tail+' Try again shortly.' }
-    : { title:'Claude’s daily limit', body:'Claude’s daily budget is used up — it resets overnight. '+tail };
-  if(/JSON|empty reply|could not read|no items|no steps/i.test(msg))
-    return { title:'Claude’s reply didn’t make sense',
-             body:(tail==='Nothing changed.') ? 'The planner could not read it. Nothing changed — try again.'
-                                              : 'The planner could not read it. '+tail+' Try again.' };
-  return { title:'Couldn’t reach Claude', body:tail+' Try again in a minute.' };
-}
-function claudeRefuse(title, msg){
-  if(!dlg||!dlg.open) return;
-  dlg.innerHTML=`<div class="dlg"><h3>${esc(title)}</h3><p>${esc(msg)}</p><div class="acts"><button class="save" data-x="k">OK</button></div></div>`;
-  dlg.querySelector('[data-x=k]').addEventListener('click',closeDialog);
-}
-function claudeStaleDialog(msg){ claudeRefuse('Your planner changed', msg); }
 async function claudeProposeSteps(pid){
   const p=getProject(pid); if(!p) return;
   if(!claudeBackend()){ flashToast('No unscheduled steps — Claude proposals need the lab or the worker'); return; }
   openDialog(`<h3>${esc(p.name)}</h3><p class="thinkrow">✶ Working out the next steps…</p><div class="acts"><button class="cancel" data-x="c">Cancel</button></div>`);
-  const g=_dlgGen;                              /* v2.4: this dialog's identity */
-  let _stepsApplied=false;                      /* one apply per proposal set, ever */
   dlg.querySelector('[data-x=c]').addEventListener('click',closeDialog);
   const doneL=allProjectTasks(pid).filter(x=>x.t.done).map(x=>x.t.label), openL=allProjectTasks(pid).filter(x=>!x.t.done).map(x=>x.t.label);
   let steps;
   try{
     const txt=await askClaude(COACH_SYS+' Reply ONLY with JSON: {"steps":[{"label":"...","kind":"personal|work"}]} — exactly 3 concrete next steps, each under 10 words, none duplicating what is done or open.',
       `Project: ${p.name}. Goal: ${p.goal||''}. Target: ${p.due||'none'}. Done: ${doneL.join('; ')||'nothing yet'}. Open: ${openL.join('; ')||'none'}.`, 400);
-    steps=extractJSON(txt).steps
-      .filter(s=>s && typeof s.label==='string' && s.label.trim())
-      .map(s=>({label:s.label.trim().slice(0,200), kind:(s.kind==='work')?'work':'personal'}))
-      .slice(0,3);
+    steps=extractJSON(txt).steps.filter(s=>s&&s.label).slice(0,3);
     if(!steps.length) throw new Error('no steps');
-  }catch(e){ if(dlgIs(g)){ const c=claudeErrCopy(e,'Nothing changed.'); claudeRefuse(c.title, c.body); } return; }
-  if(!dlgIs(g)) return;                          /* v2.4: a late reply may only ever draw into the dialog it was raised from */
-  dlg.innerHTML=`<div class="dlg"><h3>Next steps for ${esc(p.name)}</h3><p>They'll go to Future, tagged to the project — schedule them when you're ready.</p>
+  }catch(e){ if(dlg.open){ dlg.innerHTML=`<div class="dlg"><h3>Couldn’t reach Claude</h3><p>Nothing changed. ${esc(e.message)}</p><div class="acts"><button class="save" data-x="k">OK</button></div></div>`; dlg.querySelector('[data-x=k]').addEventListener('click',closeDialog); } return; }
+  if(!dlg.open) return;
+  dlg.innerHTML=`<div class="dlg"><h3>Next steps for ${esc(p.name)}</h3><p>Added to Future, tagged to the project — schedule them when ready.</p>
     <div class="proprows">${steps.map(s=>`<div class="proprow"><b>${esc(s.label)}</b><span class="prop-meta">${esc(s.kind==='work'?'work':'personal')}</span></div>`).join('')}</div>
     <div class="acts"><button class="cancel" data-x="no">Not now</button><button class="save" data-x="yes">Add ${steps.length} steps</button></div></div>`;
   dlg.querySelector('[data-x=no]').addEventListener('click',closeDialog);
-  dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{
-    /* v2.4: refuse loudly if the store was replaced (cloud adopt) or the project has gone —
-       an apply into a detached object writes nowhere yet still bumps rev and pushes. */
-    if(!getProject(pid)){ claudeStaleDialog('Those steps were worked out from an older copy of your planner, so nothing was added. Open the project and ask again.'); return; }
-    if(_stepsApplied) return; _stepsApplied=true;
-    const wk=ensureWeek(todayMonday); steps.forEach(s=>{ wk.future[s.kind].push(T(s.label,s.kind,{projectId:pid})); }); saveDB(); closeDialog(); renderProjectDetail(pid); flashToast('Steps added to the trail');
-  });
+  dlg.querySelector('[data-x=yes]').addEventListener('click',()=>{ const wk=ensureWeek(todayMonday); steps.forEach(s=>{ const kind=s.kind==='work'?'work':'personal'; wk.future[kind].push(T(s.label,kind,{projectId:pid})); }); saveDB(); closeDialog(); renderProjectDetail(pid); flashToast('Steps added to the trail'); });
 }
 function fitCardInner(){
   const t=fitToken();
@@ -3162,7 +2921,6 @@ function fitCardInner(){
 function claudeCardInner(){
   const be=claudeBackend();
   return `<div class="conn"><div class="conn-h"><div><div class="conn-t">Claude · intelligence</div><div class="conn-d">Weekly read · shrink stuck tasks · sort brain-dumps · plan project steps · proposals only, you approve every change</div></div><span class="conn-badge" style="color:${be?'var(--good)':'var(--gold)'}">${be==='lab'?'Active · here':be==='worker'?'Active · worker':'Needs worker'}</span></div>
-  ${be==='worker'?'<div class="conn-d" style="margin-top:8px">Runs through your own Cloudflare worker. Your API key lives only in that worker\'s secret — never in this page, this device or your planner file. Claude sees whatever you ask about — your week summary, a stuck task, a project, or the thoughts in your inbox — plus a short note about how you work and what your life looks like, so the tone fits. Nothing else leaves the planner, and nothing is stored there.</div>':''}
   ${be?'' :'<div class="conn-d" style="margin-top:8px">On the live site this talks to Claude through a tiny Cloudflare worker (same pattern as the Fitbit proxy) that holds your API key — one file, ~20 lines. In this design lab it works out of the box.</div>'}</div>`;
 }
 /* ----- HEALTH: Fitbit / Google Health behind ONE adapter; gap-tolerant ----- */
@@ -3935,7 +3693,7 @@ function countAllTasks(){ let n=0; Object.values(DB.weeks).forEach(wk=>{ if(!wk|
 
 function malagaDriverHTML(){ const p=(DB.projects||[]).find(x=>x.pinned); if(!p)return ''; const pr=projectProgress(p.id); const nx=nextProjectStep(p.id); return `<button class="driver" data-act="openproject" data-pid="${p.id}" style="--pc:${p.color}"><div class="drv-l"><div class="drv-name">★ ${esc(p.name)}</div><div class="drv-next">${nx?'Next: '+esc(nx.t.label):'All steps done 🎉'}</div></div><div class="drv-r"><div class="drv-pct">${pr.pct}%</div><div class="pf-bar small"><div class="pf-fill" style="width:${pr.pct}%"></div></div></div></button>`; }
 function dueBanner(){ const n=dueCount(); if(!n) return ''; return `<button class="duebanner" data-go="reminders"><span class="db-l">🔔 ${n} reminder${n!==1?'s':''} due now</span><span class="db-r">Review →</span></button>`; }
-function buildWeekSummary(){ const wk=curWeek(); const [sy,sm,sd]=ui.weekKey.split('-').map(Number); let s=`My week (w/c ${sd} ${MON[sm-1]} ${sy}):\n`; wk.days.forEach(d=>{ const items=[...d.personal,...d.work].filter(t=>!t.done).map(t=>t.label); if(items.length) s+=`\u2022 ${d.dow}: ${items.join('; ')}\n`; }); if(wk.weekend){ const wq=[...wk.weekend.personal,...wk.weekend.work].filter(t=>!t.done).map(t=>t.label); if(wq.length) s+=`\u2022 Weekend (floating): ${wq.join('; ')}\n`; } const stuck=[]; wk.days.forEach(d=>[...d.personal,...d.work].forEach(t=>{ if(t.defers>=3)stuck.push(t.label); })); ['future','weekend'].forEach(z=>{ if(wk[z]) [...wk[z].personal,...wk[z].work].forEach(t=>{ if(!t.done && t.defers>=3)stuck.push(t.label); }); }); if(stuck.length) s+=`Keeps slipping (3+ wks): ${stuck.join('; ')}\n`; const ml=malagaLine(); if(ml) s+=`Málaga: ${ml.replace(/<[^>]+>/g,'')}\n`; s+=`\nPlease summarise my week and help me re-plan it, protecting time — I've a one-year-old and time is rare.`; return s; }
+function buildWeekSummary(){ const wk=curWeek(); const [sy,sm,sd]=ui.weekKey.split('-').map(Number); let s=`My week (w/c ${sd} ${MON[sm-1]} ${sy}):\n`; wk.days.forEach(d=>{ const items=[...d.personal,...d.work].filter(t=>!t.done).map(t=>t.label); if(items.length) s+=`\u2022 ${d.dow}: ${items.join('; ')}\n`; }); if(wk.weekend){ const wq=[...wk.weekend.personal,...wk.weekend.work].filter(t=>!t.done).map(t=>t.label); if(wq.length) s+=`\u2022 Weekend (floating): ${wq.join('; ')}\n`; } const stuck=[]; wk.days.forEach(d=>[...d.personal,...d.work].forEach(t=>{ if(t.defers>=3)stuck.push(t.label); })); ['future','weekend'].forEach(z=>{ if(wk[z]) [...wk[z].personal,...wk[z].work].forEach(t=>{ if(!t.done && t.defers>=3)stuck.push(t.label); }); }); if(stuck.length) s+=`Keeps slipping (3+ wks): ${stuck.join('; ')}\n`; const ml=malagaLine(); if(ml) s+=`Málaga: ${ml.replace(/<[^>]+>/g,'')}\n`; s+=`\nPlease summarise my week and help me re-plan it, protecting time — I've a new baby and time is rare.`; return s; }
 function talkWeek(){ const txt=buildWeekSummary(); try{ if(navigator.share){ navigator.share({title:'My week',text:txt}).catch(()=>{}); return; } }catch(e){} try{ navigator.clipboard.writeText(txt).then(()=>flashToast('Week summary copied — paste into Claude'),()=>flashToast('Copy not available')); }catch(e){ flashToast('Copy not available here'); } }
 function trustPanelHTML(){ return `<div class="trust"><div class="trust-h">✶ Built, stress-tested & maintained by Claude</div><div class="trust-v">${APP_VERSION} · ${countAllTasks()} tasks held safely · last self-check ${todayISO}</div><ul class="trust-rules"><li>Never drops a task — every change is additive; nothing overwritten</li><li>One-tap JSON + Excel backup (your Friday ritual)</li><li>Writes verified before they're trusted; fails loudly, never silently</li><li>Won't touch your real planner file until you approve the wiring</li></ul><div class="trust-foot">Claude re-checks the planner's health at every weekly review and flags anything off.</div></div>`; }
 
@@ -4036,16 +3794,11 @@ function openAddStep(pid){
   dlg.querySelector('[data-x="save"]').addEventListener('click',done);
   dlg.querySelector('#s-label').addEventListener('keydown',e=>{ if(e.key==='Enter')done(); });
 }
-let _fillAt=0;
 function claudeFill(pid){
   const ts=allProjectTasks(pid).filter(x=>!x.t.done && x.di==='F'); if(!ts.length){ claudeProposeSteps(pid); return; }
-  /* v2.4 (panel: stress + UX seats): this button moves the project's own unscheduled steps into
-     the week — the planner doing it, not Claude — and a second tap used to move the next three
-     as well. One move per tap. */
-  if(Date.now()-_fillAt<1200) return; _fillAt=Date.now();
   const wk=ensureWeek(todayMonday); let di=todayDayIdx(), moved=0;
   ts.slice(0,3).forEach(x=>{ const arr=x.wk.future[x.kind]; const pos=arr.indexOf(x.t); if(pos>=0)arr.splice(pos,1); wk.days[Math.min(di,6)][x.kind].push(x.t); di++; moved++; });
-  saveDB(); flashToast(`Moved ${moved} project step${moved!==1?'s':''} into this week`); renderProjectDetail(pid);
+  saveDB(); flashToast(`Claude scheduled ${moved} step${moved!==1?'s':''} into your week`); renderProjectDetail(pid);
 }
 
 /* reminder due-check: in-app while open (background push needs the wiring step) */
